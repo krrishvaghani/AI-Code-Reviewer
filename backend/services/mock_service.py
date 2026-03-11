@@ -1,0 +1,155 @@
+"""
+Mock AI service — returns realistic hardcoded review feedback.
+This is used during development before the real Gemini API is wired up.
+Replace the body of `review_code` in gemini_service.py to switch to live AI.
+"""
+
+from models.schemas import ReviewResponse
+
+# ---------------------------------------------------------------------------
+# Language-specific mock responses
+# ---------------------------------------------------------------------------
+
+_MOCK_RESPONSES: dict[str, ReviewResponse] = {
+    "python": ReviewResponse(
+        bugs=[
+            "Using `range(len(arr))` is fragile — it raises an IndexError if `arr` is None.",
+            "No input validation: the function will crash if a non-iterable is passed.",
+            "Integer division used implicitly in some expressions (Python 2 legacy pattern).",
+        ],
+        optimizations=[
+            "Replace index-based loops with direct iteration (`for item in arr`).",
+            "Use list comprehensions or generator expressions for transformations.",
+            "Add type hints to improve readability and enable static analysis.",
+            "Cache repeated attribute lookups (e.g., `len(arr)`) outside the loop.",
+        ],
+        improved_code=(
+            "from typing import Iterable\n\n"
+            "def process_items(arr: Iterable) -> None:\n"
+            "    \"\"\"Print each item in the iterable.\"\"\"\n"
+            "    if arr is None:\n"
+            "        raise ValueError(\"arr must not be None\")\n"
+            "    for item in arr:\n"
+            "        print(item)\n"
+        ),
+        explanation=(
+            "The original code used `range(len(arr))` which is an anti-pattern in Python. "
+            "Direct iteration (`for item in arr`) is more readable, works with any iterable, "
+            "and avoids off-by-one errors. Type hints were added for clarity and static analysis support. "
+            "A guard clause was added to handle None input gracefully."
+        ),
+    ),
+    "javascript": ReviewResponse(
+        bugs=[
+            "`var` declarations are function-scoped, causing unintended hoisting bugs.",
+            "No null/undefined check before iterating — will throw if the array is falsy.",
+            "Implicit type coercion in comparisons (e.g., `==` instead of `===`).",
+        ],
+        optimizations=[
+            "Replace `var` with `const` / `let` for block-scoped variables.",
+            "Use `for...of` instead of index-based `for` loops for arrays.",
+            "Use `Array.prototype.forEach` or functional methods (`map`, `filter`) where appropriate.",
+            "Add strict equality checks (`===`) to avoid coercion bugs.",
+        ],
+        improved_code=(
+            "/**\n"
+            " * Prints each item in the array.\n"
+            " * @param {Array} arr\n"
+            " */\n"
+            "function processItems(arr) {\n"
+            "  if (!Array.isArray(arr)) {\n"
+            "    throw new TypeError('arr must be an array');\n"
+            "  }\n"
+            "  for (const item of arr) {\n"
+            "    console.log(item);\n"
+            "  }\n"
+            "}\n"
+        ),
+        explanation=(
+            "Replaced `var` with `const` to avoid hoisting and accidental re-assignment. "
+            "`for...of` is the modern, readable way to iterate arrays in JavaScript. "
+            "Added an `Array.isArray` guard to prevent runtime errors on bad input. "
+            "JSDoc was added to document the function's expected parameter type."
+        ),
+    ),
+    "java": ReviewResponse(
+        bugs=[
+            "Raw types used instead of generics — causes unchecked cast warnings and potential ClassCastExceptions.",
+            "No null check on the collection parameter before iteration.",
+            "Integer overflow possible when accumulating values in `int` without bounds check.",
+        ],
+        optimizations=[
+            "Use the enhanced for-each loop instead of index-based iteration.",
+            "Prefer `List<T>` with generics over raw `List` types.",
+            "Use `Optional<T>` to express nullable return values explicitly.",
+            "Consider `Stream` API for functional-style transformations.",
+        ],
+        improved_code=(
+            "import java.util.List;\n"
+            "import java.util.Objects;\n\n"
+            "public class ArrayProcessor {\n\n"
+            "    /**\n"
+            "     * Prints each element of the list.\n"
+            "     *\n"
+            "     * @param items a non-null list of items to print\n"
+            "     */\n"
+            "    public static <T> void processItems(List<T> items) {\n"
+            "        Objects.requireNonNull(items, \"items must not be null\");\n"
+            "        for (T item : items) {\n"
+            "            System.out.println(item);\n"
+            "        }\n"
+            "    }\n"
+            "}\n"
+        ),
+        explanation=(
+            "Introduced a generic type parameter `<T>` to eliminate raw types and enable compile-time type safety. "
+            "Replaced the index-based loop with an enhanced for-each loop — cleaner and less error-prone. "
+            "`Objects.requireNonNull` provides a clear, early failure on null input instead of a NullPointerException deep in the loop."
+        ),
+    ),
+    "cpp": ReviewResponse(
+        bugs=[
+            "Using `int` index with `std::vector::size()` (which returns `size_t`) causes signed/unsigned comparison warnings.",
+            "No bounds checking — accessing out-of-range indices causes undefined behaviour.",
+            "Missing `const` qualifier on the parameter — prevents passing const containers.",
+        ],
+        optimizations=[
+            "Use a range-based for loop instead of index-based iteration.",
+            "Pass containers by `const` reference to avoid unnecessary copies.",
+            "Use `auto` to deduce element types and reduce verbosity.",
+            "Prefer `std::size_t` or range-based loops to avoid signed/unsigned mismatch.",
+        ],
+        improved_code=(
+            "#include <iostream>\n"
+            "#include <vector>\n\n"
+            "/**\n"
+            " * Prints each element in the vector.\n"
+            " * @param items  read-only reference to the vector\n"
+            " */\n"
+            "template <typename T>\n"
+            "void processItems(const std::vector<T>& items) {\n"
+            "    for (const auto& item : items) {\n"
+            "        std::cout << item << '\\n';\n"
+            "    }\n"
+            "}\n"
+        ),
+        explanation=(
+            "A range-based for loop eliminates index arithmetic and signed/unsigned mismatch. "
+            "The parameter is now `const std::vector<T>&` — const prevents modification, the reference avoids a copy. "
+            "Templating makes the function reusable for any element type. "
+            "`'\\n'` is preferred over `std::endl` because it avoids flushing the stream on every iteration."
+        ),
+    ),
+}
+
+_DEFAULT_RESPONSE = ReviewResponse(
+    bugs=["Unable to detect language-specific patterns for a detailed analysis."],
+    optimizations=["Ensure the correct language is selected for better suggestions."],
+    improved_code="# No improved code available for this language in mock mode.",
+    explanation="This is a mock response. Connect the Gemini API for real AI-powered reviews.",
+)
+
+
+def get_mock_review(language: str) -> ReviewResponse:
+    """Return a mock ReviewResponse for the given language."""
+    return _MOCK_RESPONSES.get(language, _DEFAULT_RESPONSE)
