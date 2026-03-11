@@ -21,27 +21,59 @@ logger = logging.getLogger(__name__)
 # Prompt template
 # ---------------------------------------------------------------------------
 
-_PROMPT_TEMPLATE = """You are an expert software engineer and code reviewer.
-Analyze the following {language} code and respond ONLY with a valid JSON object — no markdown, no backticks, no extra text.
+_PROMPT_TEMPLATE = """You are a senior software engineer, security auditor, and performance expert
+with 15+ years of experience. Perform a comprehensive code review of the {language} code below.
 
-The JSON must have exactly these five keys:
-- "issues": a JSON array of strings describing bugs, errors, or code smells found (empty array if none)
-- "suggestions": a JSON array of strings with improvement suggestions (empty array if none)
-- "improved_code": a single string containing the fully rewritten, improved version of the code
-- "explanation": a single string explaining what was changed and why
-- "complexity": an object with exactly these fields:
-    - "time_complexity": Big-O notation string (e.g. "O(n)", "O(n²)")
-    - "space_complexity": Big-O notation string for memory usage
-    - "has_nested_loops": boolean — true if the code has nested loops that worsen complexity
-    - "bottlenecks": array of strings describing inefficiencies
-    - "optimization_hint": a single concise sentence on the best optimization
+Analyse across FOUR dimensions and respond with ONLY a valid JSON object — no markdown,
+no backticks, no text outside the JSON.
+
+The JSON must have exactly these seven keys:
+
+1. "issues" — array of strings
+   Bugs, logic errors, incorrect behaviour, off-by-one errors, null dereferences,
+   resource leaks, and anti-patterns specific to the code shown.
+   Format: "[SEVERITY: HIGH|MEDIUM|LOW] <location if inferable> — <description>"
+   Empty array [] if none.
+
+2. "performance_issues" — array of strings
+   Algorithmic inefficiencies, N+1 patterns, blocking calls, redundant computation,
+   missing caching, inefficient data structures, or poor Big-O choices.
+   Format: "[PERF] <description and impact>"
+   Empty array [] if none.
+
+3. "security_issues" — array of strings
+   Vulnerabilities such as: SQL/command/LDAP injection, hardcoded secrets,
+   insecure eval/exec usage, path traversal, missing auth checks, exposed PII in logs,
+   SSRF, unsafe deserialization, weak crypto (MD5, SHA-1, ECB mode).
+   Format: "[OWASP CWE-<ID>] <description and remediation>"
+   Empty array [] if none.
+
+4. "suggestions" — array of strings
+   Readability, naming, documentation, design patterns, idiomatic rewrites, test hints.
+   Empty array [] if none.
+
+5. "improved_code" — string
+   Fully rewritten code that fixes ALL identified issues. Preserve original intent and API.
+
+6. "explanation" — string
+   Concise explanation of every change: what was changed, why, and which issue it resolves.
+
+7. "complexity" — object:
+   - "time_complexity"  : Big-O string (e.g. "O(n log n)")
+   - "space_complexity" : Big-O string
+   - "has_nested_loops" : boolean
+   - "bottlenecks"      : array of strings
+   - "optimization_hint": single sentence — the highest-impact optimisation
 
 Code to review:
 ```{language}
 {code}
 ```
 
-Respond with ONLY the JSON object."""
+Critical rules:
+- Return ONLY the JSON object. No markdown. No backticks. No preamble.
+- Findings must be specific to this code — do NOT invent generic issues.
+- Empty array [] for any category with no findings."""
 
 
 def _build_prompt(language: str, code: str) -> str:
@@ -73,6 +105,8 @@ def _parse_response(raw: str) -> ReviewResponse:
 
     return ReviewResponse(
         issues=data.get("issues", []),
+        performance_issues=data.get("performance_issues", []),
+        security_issues=data.get("security_issues", []),
         suggestions=data.get("suggestions", []),
         improved_code=data.get("improved_code", ""),
         explanation=data.get("explanation", ""),

@@ -25,44 +25,89 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _SYSTEM_PROMPT = (
-    "You are an expert software engineer and code reviewer with deep knowledge "
-    "of software design patterns, performance optimization, and best practices "
-    "across multiple programming languages. "
-    "You always respond with ONLY a valid JSON object — no markdown, no backticks, "
-    "no explanatory text outside the JSON."
+    "You are a senior software engineer, security auditor, and performance expert "
+    "with 15+ years of experience across Python, JavaScript, Java, C++, and more. "
+    "You perform deep code reviews covering correctness, security (OWASP Top 10), "
+    "performance, and code quality. "
+    "You always respond with ONLY a valid JSON object — no markdown fences, no backticks, "
+    "no prose outside the JSON structure."
 )
 
-_USER_PROMPT_TEMPLATE = """Analyze the following {language} code and provide a thorough code review.
+_USER_PROMPT_TEMPLATE = """Perform a comprehensive code review of the {language} code below.
 
-Return ONLY a JSON object with exactly these five keys:
-- "issues": array of strings — each describes one bug, error, code smell, or bad practice (empty array if none)
-- "suggestions": array of strings — each is one actionable optimization or improvement suggestion (empty array if none)
-- "improved_code": string — the fully rewritten, corrected, and optimized version of the code
-- "explanation": string — a clear explanation of every change made and why it improves the code
-- "complexity": object with exactly these fields:
-    - "time_complexity": string — Big-O notation (e.g. "O(n)", "O(n²)", "O(log n)")
-    - "space_complexity": string — Big-O notation for memory usage
-    - "has_nested_loops": boolean — true if the code contains nested loops or recursive calls that worsen complexity
-    - "bottlenecks": array of strings — each describes a specific inefficiency or bottleneck found
-    - "optimization_hint": string — one concise sentence on the single best optimization to apply
+You must analyse the code across FOUR distinct dimensions and return ONLY a JSON object
+with exactly these seven keys:
+
+1. "issues" — array of strings
+   Bugs, logic errors, incorrect behaviour, off-by-one errors, null/undefined dereferences,
+   resource leaks, anti-patterns, and code-style violations.
+   Each item: "[SEVERITY: HIGH|MEDIUM|LOW] <file location if inferable> — <concise description>"
+   Empty array if none found.
+
+2. "performance_issues" — array of strings
+   Algorithmic inefficiencies, unnecessary re-computation, N+1 query patterns, blocking I/O,
+   missing caching, inefficient data structures, memory churn, or suboptimal Big-O usage.
+   Each item: "[PERF] <concise description and impact>"
+   Empty array if none found.
+
+3. "security_issues" — array of strings
+   Security vulnerabilities including (but not limited to):
+   - Injection risks (SQL, command, LDAP, XSS)
+   - Hardcoded secrets, API keys, or passwords
+   - Insecure deserialization or eval usage
+   - Path traversal or directory listing
+   - Broken authentication / missing authorisation checks
+   - Exposed sensitive data or PII in logs
+   - SSRF or unvalidated redirects
+   - Insecure cryptographic choices (MD5, SHA-1, ECB mode)
+   Each item: "[OWASP CWE-<ID>] <concise description and remediation>"
+   Empty array if none found.
+
+4. "suggestions" — array of strings
+   Readability, maintainability, naming conventions, documentation, design pattern
+   improvements, test coverage hints, and language-idiomatic rewrites.
+   Empty array if none found.
+
+5. "improved_code" — string
+   A fully rewritten, corrected, and optimised version of the code that addresses
+   ALL issues found above. Preserve the original intent and public API.
+
+6. "explanation" — string
+   A concise but complete explanation of every change made: what was changed,
+   which issue it addresses, and why it improves the code.
+
+7. "complexity" — object with exactly:
+   - "time_complexity"  : Big-O notation string (e.g. "O(n log n)")
+   - "space_complexity" : Big-O notation string
+   - "has_nested_loops" : boolean
+   - "bottlenecks"      : array of strings describing specific inefficiencies
+   - "optimization_hint": one sentence — the single highest-impact optimisation
 
 Code to review ({language}):
 ```{language}
 {code}
 ```
 
-Respond with ONLY the JSON object. Example structure:
+Rules:
+- Respond with ONLY the JSON object — absolutely no markdown, no backticks, no preamble.
+- Every finding must be specific to the actual code provided — do NOT invent generic issues.
+- If a category has no findings, set it to an empty array [].
+- Keep each finding to one clear, self-contained sentence.
+
+Example structure (values are illustrative only):
 {{
-  "issues": ["Issue 1"],
-  "suggestions": ["Suggestion 1"],
-  "improved_code": "// improved code here",
-  "explanation": "The changes improve X because Y...",
+  "issues": ["[SEVERITY: HIGH] Line 12 — NullPointerException if `user` is None before attribute access"],
+  "performance_issues": ["[PERF] Quadratic O(n²) comparison inside nested loop — use a hash set for O(n)"],
+  "security_issues": ["[OWASP CWE-89] User input concatenated directly into SQL query — use parameterised statements"],
+  "suggestions": ["Add type hints to all public functions for IDE support and static analysis"],
+  "improved_code": "# fixed code here",
+  "explanation": "Replaced raw SQL with parameterised query to prevent injection. Added None guard.",
   "complexity": {{
     "time_complexity": "O(n)",
     "space_complexity": "O(1)",
     "has_nested_loops": false,
-    "bottlenecks": ["Linear scan without early exit"],
-    "optimization_hint": "Use a hash set for O(1) lookups instead of O(n) scans."
+    "bottlenecks": ["Linear scan without early exit on match"],
+    "optimization_hint": "Use a hash set for O(1) membership tests instead of O(n) list scans."
   }}
 }}"""
 
@@ -103,6 +148,8 @@ def _parse_response(raw: str) -> ReviewResponse:
 
     return ReviewResponse(
         issues=data.get("issues", []),
+        performance_issues=data.get("performance_issues", []),
+        security_issues=data.get("security_issues", []),
         suggestions=data.get("suggestions", []),
         improved_code=data.get("improved_code", ""),
         explanation=data.get("explanation", ""),

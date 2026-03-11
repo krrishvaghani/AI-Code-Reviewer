@@ -39,8 +39,10 @@ class ComplexityAnalysis(BaseModel):
 
 
 class ReviewResponse(BaseModel):
-    issues: List[str]
-    suggestions: List[str]
+    issues: List[str]                              # bugs, errors, code smells
+    performance_issues: List[str] = []            # algorithmic / runtime performance problems
+    security_issues: List[str]    = []            # security vulnerabilities (OWASP-class)
+    suggestions: List[str]                        # general style / quality improvements
     improved_code: str
     explanation: str
     complexity: Optional[ComplexityAnalysis] = None

@@ -1,6 +1,10 @@
 """
 Mock AI service — returns realistic hardcoded review feedback.
-This is used during development before the real API is wired up.
+Used during development or when USE_MOCK=true in .env.
+
+All responses now include the full ReviewResponse schema:
+  issues, performance_issues, security_issues, suggestions,
+  improved_code, explanation, complexity.
 """
 
 from models.schemas import ReviewResponse, ComplexityAnalysis
@@ -12,309 +16,230 @@ from models.schemas import ReviewResponse, ComplexityAnalysis
 _MOCK_RESPONSES: dict[str, ReviewResponse] = {
     "python": ReviewResponse(
         issues=[
-            "Using `range(len(arr))` is fragile — it raises an IndexError if `arr` is None.",
-            "No input validation: the function will crash if a non-iterable is passed.",
-            "Integer division used implicitly in some expressions (Python 2 legacy pattern).",
+            "[SEVERITY: HIGH] Line 3 — `range(len(arr))` raises IndexError when `arr` is None.",
+            "[SEVERITY: MEDIUM] No input validation: passing a non-iterable causes an unhelpful TypeError.",
+            "[SEVERITY: LOW] Python 2-style implicit integer division may give unexpected float results.",
+        ],
+        performance_issues=[
+            "[PERF] Repeated `len(arr)` call inside the loop recomputes the length on every iteration — cache it before the loop.",
+            "[PERF] Index-based loop prevents the iterator protocol; use direct iteration to allow lazy evaluation.",
+        ],
+        security_issues=[
+            "[OWASP CWE-20] No input sanitisation — unvalidated external data passed directly to processing logic; add type and bounds checks at the boundary.",
         ],
         suggestions=[
-            "Replace index-based loops with direct iteration (`for item in arr`).",
-            "Use list comprehensions or generator expressions for transformations.",
-            "Add type hints to improve readability and enable static analysis.",
-            "Cache repeated attribute lookups (e.g., `len(arr)`) outside the loop.",
+            "Replace `range(len(arr))` with a direct `for item in arr` loop.",
+            "Add type hints (e.g., `arr: Iterable`) for IDE support and static analysis.",
+            "Extract the None guard into a reusable `validate_input` helper for testability.",
+            "Add a docstring describing parameters, return type, and raised exceptions.",
         ],
         improved_code=(
-            "from typing import Iterable\n\n"
-            "def process_items(arr: Iterable) -> None:\n"
-            "    \"\"\"Print each item in the iterable.\"\"\"\n"
+            "from __future__ import annotations\n"
+            "from collections.abc import Iterable\n\n\n"
+            "def process_items(arr: Iterable[object]) -> None:\n"
+            "    \"\"\"Print each item in *arr*.\n\n"
+            "    Args:\n"
+            "        arr: Any non-None iterable of objects.\n\n"
+            "    Raises:\n"
+            "        TypeError: If *arr* is not iterable.\n"
+            "        ValueError: If *arr* is None.\n"
+            "    \"\"\"\n"
             "    if arr is None:\n"
             "        raise ValueError(\"arr must not be None\")\n"
+            "    if not hasattr(arr, \"__iter__\"):\n"
+            "        raise TypeError(f\"arr must be iterable, got {type(arr).__name__}\")\n"
             "    for item in arr:\n"
             "        print(item)\n"
         ),
         explanation=(
-            "The original code used `range(len(arr))` which is an anti-pattern in Python. "
-            "Direct iteration is more readable, works with any iterable, and avoids off-by-one errors. "
-            "Type hints were added for clarity. A guard clause handles None input gracefully."
+            "Replaced index-based `range(len(arr))` with direct iteration — more readable, works with "
+            "any iterable, and avoids off-by-one errors. Added a None guard and a type guard to provide "
+            "clear error messages at the boundary (CWE-20 mitigation). Type hint uses the abstract "
+            "`Iterable` rather than `list` so the function accepts generators, tuples, and any iterator. "
+            "A full docstring documents parameters, return type, and exceptions."
         ),
         complexity=ComplexityAnalysis(
             time_complexity="O(n)",
             space_complexity="O(1)",
             has_nested_loops=False,
-            bottlenecks=["Single pass over the entire iterable with no early exit"],
-            optimization_hint="Use Python's built-in sum() and len() for average calculation to leverage C-level speed.",
+            bottlenecks=["Single sequential pass — no early exit on a match"],
+            optimization_hint="If only membership needs to be tested, use a set for O(1) lookups instead of iterating.",
         ),
     ),
+
     "javascript": ReviewResponse(
         issues=[
-            "`var` declarations are function-scoped, causing unintended hoisting bugs.",
-            "No null/undefined check before iterating — will throw if the array is falsy.",
-            "Implicit type coercion in comparisons (e.g., `==` instead of `===`).",
+            "[SEVERITY: HIGH] `var` declarations are function-scoped — hoisting causes subtle bugs in loops.",
+            "[SEVERITY: HIGH] No null/undefined guard before iteration — throws if `arr` is falsy.",
+            "[SEVERITY: MEDIUM] Uses `==` instead of `===` — implicit type coercion leads to unexpected equality.",
+        ],
+        performance_issues=[
+            "[PERF] Calling `console.log` on every element is I/O-bound for large arrays; batch into a single call.",
+            "[PERF] `Array.indexOf` inside a loop creates an O(n²) search — replace with a Set for O(n).",
+        ],
+        security_issues=[
+            "[OWASP CWE-79] If array items are rendered as HTML, unsanitised output enables XSS — escape values before insertion into the DOM.",
         ],
         suggestions=[
-            "Replace `var` with `const` / `let` for block-scoped variables.",
-            "Use `for...of` instead of index-based `for` loops for arrays.",
-            "Use `Array.prototype.reduce` for accumulation patterns.",
-            "Add strict equality checks (`===`) to avoid coercion bugs.",
+            "Replace `var` with `const` / `let` for block-scoped, predictable bindings.",
+            "Use `for...of` or `Array.prototype.forEach` instead of an index-based loop.",
+            "Add a JSDoc comment documenting the parameter type and expected behaviour.",
+            "Use `Array.isArray(arr)` for a clear, type-safe guard.",
         ],
         improved_code=(
             "/**\n"
-            " * Prints each item in the array.\n"
-            " * @param {Array} arr\n"
+            " * Prints each item in the array to the console.\n"
+            " *\n"
+            " * @param {unknown[]} arr - The array to iterate over.\n"
+            " * @throws {TypeError} If arr is not an Array.\n"
             " */\n"
             "function processItems(arr) {\n"
             "  if (!Array.isArray(arr)) {\n"
-            "    throw new TypeError('arr must be an array');\n"
-            "  }\n"
-            "  for (const item of arr) {\n"
-            "    console.log(item);\n"
-            "  }\n"
+            "    throw new TypeError(`arr must be an Array, received ${typeof arr}`);\n"
+            "  }\n\n"
+            "  // Batch for performance on large arrays\n"
+            "  console.log(arr.join('\\n'));\n"
             "}\n"
         ),
         explanation=(
-            "Replaced `var` with `const` to avoid hoisting. `for...of` is the modern way to iterate arrays. "
-            "Added an `Array.isArray` guard to prevent runtime errors. JSDoc documents the parameter."
+            "Replaced `var` with `const` to eliminate hoisting issues. Switched to `Array.isArray` "
+            "guard for explicit type safety (mitigates CWE-20). Batched console output into a single "
+            "`join` + `log` call to avoid O(n) I/O calls. JSDoc added for IDE autocomplete support. "
+            "Strict equality (`===`) enforced throughout."
         ),
         complexity=ComplexityAnalysis(
             time_complexity="O(n)",
-            space_complexity="O(1)",
+            space_complexity="O(n)",
             has_nested_loops=False,
-            bottlenecks=["Linear iteration with console.log on every element (I/O bound)"],
-            optimization_hint="Batch output using join() and a single console.log for large arrays.",
+            bottlenecks=["join() allocates an O(n) string — acceptable trade-off for I/O batching"],
+            optimization_hint="For very large arrays, use a streaming approach or chunk the output to avoid memory spikes.",
         ),
     ),
+
     "java": ReviewResponse(
         issues=[
-            "Raw types used instead of generics — causes unchecked cast warnings.",
-            "No null check on the collection parameter before iteration.",
-            "Integer overflow possible when accumulating values in `int` without bounds check.",
+            "[SEVERITY: HIGH] Raw `List` type used — bypasses generics and produces unchecked cast warnings at runtime.",
+            "[SEVERITY: HIGH] No null check on the parameter — NullPointerException if `items` is null.",
+            "[SEVERITY: MEDIUM] Using `int` accumulator without overflow guard — silent wrapping for large sums.",
+        ],
+        performance_issues=[
+            "[PERF] One `System.out.println` call per element — sequential I/O; batch with `StringBuilder` for large collections.",
+            "[PERF] Index-based `for` loop on a `LinkedList` causes O(n²) traversal — use enhanced for-each or an Iterator.",
+        ],
+        security_issues=[
+            "[OWASP CWE-134] If item `toString()` output is user-controlled and later written to a log, it may cause log injection — sanitise or escape before logging.",
         ],
         suggestions=[
-            "Use the enhanced for-each loop instead of index-based iteration.",
-            "Prefer `List<T>` with generics over raw `List` types.",
-            "Use `Optional<T>` to express nullable return values explicitly.",
-            "Consider the `Stream` API for functional-style transformations.",
+            "Use parameterised generics `List<T>` rather than raw `List`.",
+            "Prefer the enhanced for-each loop over index iteration.",
+            "Use `Objects.requireNonNull` for an expressive null guard with a clear message.",
+            "Consider the `Stream` API for functional-style pipelines (`stream().forEach(...)`).",
         ],
         improved_code=(
             "import java.util.List;\n"
             "import java.util.Objects;\n\n"
-            "public class ArrayProcessor {\n\n"
-            "    public static <T> void processItems(List<T> items) {\n"
+            "public final class ArrayProcessor {\n\n"
+            "    private ArrayProcessor() { /* utility class */ }\n\n"
+            "    /**\n"
+            "     * Prints each element of {@code items} to standard output.\n"
+            "     *\n"
+            "     * @param <T>   the element type\n"
+            "     * @param items non-null list of items to print\n"
+            "     * @throws NullPointerException if {@code items} is null\n"
+            "     */\n"
+            "    public static <T> void processItems(final List<T> items) {\n"
             "        Objects.requireNonNull(items, \"items must not be null\");\n"
-            "        for (T item : items) {\n"
-            "            System.out.println(item);\n"
+            "        final StringBuilder sb = new StringBuilder();\n"
+            "        for (final T item : items) {\n"
+            "            sb.append(item).append(System.lineSeparator());\n"
             "        }\n"
+            "        System.out.print(sb);\n"
             "    }\n"
             "}\n"
         ),
         explanation=(
-            "Introduced generics to eliminate raw types. Enhanced for-each replaces the index loop. "
-            "`Objects.requireNonNull` provides clear early failure on null input."
+            "Generic `List<T>` replaces the raw type, eliminating unchecked cast warnings. "
+            "`Objects.requireNonNull` provides a clean null guard with an informative message. "
+            "Enhanced for-each works efficiently with any `Iterable`, including `LinkedList`. "
+            "Batching output into a `StringBuilder` reduces I/O calls from O(n) to O(1). "
+            "Class marked `final` and constructor private to enforce the utility-class pattern."
         ),
         complexity=ComplexityAnalysis(
             time_complexity="O(n)",
-            space_complexity="O(1)",
+            space_complexity="O(n)",
             has_nested_loops=False,
-            bottlenecks=["Sequential println calls — one system call per element"],
-            optimization_hint="Buffer output with StringBuilder and print once for large collections.",
+            bottlenecks=["StringBuilder grows linearly — acceptable; avoids per-element I/O"],
+            optimization_hint="For very large lists, write to a BufferedWriter and flush once to further reduce syscall overhead.",
         ),
     ),
+
     "cpp": ReviewResponse(
         issues=[
-            "Using `int` index with `std::vector::size()` (which returns `size_t`) causes signed/unsigned comparison warnings.",
-            "No bounds checking — accessing out-of-range indices causes undefined behaviour.",
-            "Missing `const` qualifier on the parameter — prevents passing const containers.",
+            "[SEVERITY: HIGH] Signed `int` index compared against `size_t` return of `size()` — UB on large vectors (signed overflow).",
+            "[SEVERITY: HIGH] No bounds check — out-of-range index access is undefined behaviour.",
+            "[SEVERITY: MEDIUM] Parameter passed by value — copies the entire vector unnecessarily.",
+        ],
+        performance_issues=[
+            "[PERF] `std::endl` flushes the stream on every iteration — use `'\\n'` to avoid unnecessary flushes.",
+            "[PERF] Passing `std::vector` by value causes O(n) copy at each call site — pass by const reference.",
+        ],
+        security_issues=[
+            "[OWASP CWE-120] Manual index arithmetic without bounds checking allows buffer over-read; use `.at()` for checked access or a range-based loop.",
         ],
         suggestions=[
-            "Use a range-based for loop instead of index-based iteration.",
-            "Pass containers by `const` reference to avoid unnecessary copies.",
-            "Use `auto` to deduce element types and reduce verbosity.",
-            "Prefer `std::size_t` or range-based loops to avoid signed/unsigned mismatch.",
+            "Use a range-based `for (const auto& item : items)` loop to eliminate index arithmetic.",
+            "Declare the parameter as `const std::vector<T>&` to avoid the copy and enforce immutability.",
+            "Template the function on the element type for maximum reuse.",
+            "Add a `[[nodiscard]]` attribute if a computed result is returned.",
         ],
         improved_code=(
             "#include <iostream>\n"
             "#include <vector>\n\n"
+            "/**\n"
+            " * Prints every element of \\p items to stdout.\n"
+            " * @tparam T  Element type (must support operator<<).\n"
+            " * @param items  Container to iterate over.\n"
+            " */\n"
             "template <typename T>\n"
             "void processItems(const std::vector<T>& items) {\n"
             "    for (const auto& item : items) {\n"
-            "        std::cout << item << '\\n';\n"
+            "        std::cout << item << '\\n';  // '\\n' avoids flush on every line\n"
             "    }\n"
             "}\n"
         ),
         explanation=(
-            "Range-based for loop eliminates index arithmetic and signed/unsigned mismatch. "
-            "The parameter is now `const std::vector<T>&` — const prevents modification, reference avoids a copy. "
-            "Templating makes the function reusable for any element type."
+            "Range-based for loop eliminates all index arithmetic and the signed/unsigned mismatch (CWE-120 mitigation). "
+            "Parameter is now `const std::vector<T>&` — `const` prevents accidental mutation, reference avoids an O(n) copy. "
+            "Templating on `T` makes the function reusable for any element type that supports `operator<<`. "
+            "Replaced `std::endl` with `'\\n'` to eliminate per-line stream flushes."
         ),
         complexity=ComplexityAnalysis(
             time_complexity="O(n)",
             space_complexity="O(1)",
             has_nested_loops=False,
-            bottlenecks=["std::endl flushes on every iteration; use '\\n' instead"],
-            optimization_hint="Reserve vector capacity up-front when size is known to eliminate reallocations.",
+            bottlenecks=["Per-element output — one write syscall per item; buffer with ostringstream for bulk writes"],
+            optimization_hint="Use `std::copy` with `std::ostream_iterator<T>` and a single `\\n` separator for cleaner, potentially faster output.",
         ),
     ),
 }
 
 _DEFAULT_RESPONSE = ReviewResponse(
-    issues=["Unable to detect language-specific patterns for a detailed analysis."],
-    suggestions=["Ensure the correct language is selected for better suggestions."],
+    issues=["[SEVERITY: LOW] Could not determine language-specific patterns for a detailed analysis."],
+    performance_issues=[],
+    security_issues=[],
+    suggestions=["Ensure the correct language is selected from the dropdown for targeted suggestions."],
     improved_code="# No improved code available for this language in mock mode.",
-    explanation="This is a mock response. Set AI_PROVIDER and the corresponding API key for real AI-powered reviews.",
+    explanation=(
+        "This is a mock response used when USE_MOCK=true or no API key is configured. "
+        "Set AI_PROVIDER and the corresponding API key in .env for real AI-powered reviews."
+    ),
     complexity=ComplexityAnalysis(
         time_complexity="O(n)",
         space_complexity="O(1)",
         has_nested_loops=False,
-        bottlenecks=["Language not recognized for detailed analysis"],
-        optimization_hint="Select a supported language to receive complexity-specific suggestions.",
+        bottlenecks=["Language not recognised — select a supported language for detailed analysis"],
+        optimization_hint="Select Python, JavaScript, Java, or C++ to receive language-specific complexity analysis.",
     ),
-)
-
-
-def get_mock_review(language: str) -> ReviewResponse:
-    """Return a mock ReviewResponse for the given language."""
-    return _MOCK_RESPONSES.get(language, _DEFAULT_RESPONSE)
-
-# ---------------------------------------------------------------------------
-# Language-specific mock responses
-# ---------------------------------------------------------------------------
-
-_MOCK_RESPONSES: dict[str, ReviewResponse] = {
-    "python": ReviewResponse(
-        issues=[
-            "Using `range(len(arr))` is fragile — it raises an IndexError if `arr` is None.",
-            "No input validation: the function will crash if a non-iterable is passed.",
-            "Integer division used implicitly in some expressions (Python 2 legacy pattern).",
-        ],
-        suggestions=[
-            "Replace index-based loops with direct iteration (`for item in arr`).",
-            "Use list comprehensions or generator expressions for transformations.",
-            "Add type hints to improve readability and enable static analysis.",
-            "Cache repeated attribute lookups (e.g., `len(arr)`) outside the loop.",
-        ],
-        improved_code=(
-            "from typing import Iterable\n\n"
-            "def process_items(arr: Iterable) -> None:\n"
-            "    \"\"\"Print each item in the iterable.\"\"\"\n"
-            "    if arr is None:\n"
-            "        raise ValueError(\"arr must not be None\")\n"
-            "    for item in arr:\n"
-            "        print(item)\n"
-        ),
-        explanation=(
-            "The original code used `range(len(arr))` which is an anti-pattern in Python. "
-            "Direct iteration (`for item in arr`) is more readable, works with any iterable, "
-            "and avoids off-by-one errors. Type hints were added for clarity and static analysis support. "
-            "A guard clause was added to handle None input gracefully."
-        ),
-    ),
-    "javascript": ReviewResponse(
-        issues=[
-            "`var` declarations are function-scoped, causing unintended hoisting bugs.",
-            "No null/undefined check before iterating — will throw if the array is falsy.",
-            "Implicit type coercion in comparisons (e.g., `==` instead of `===`).",
-        ],
-        suggestions=[
-            "Replace `var` with `const` / `let` for block-scoped variables.",
-            "Use `for...of` instead of index-based `for` loops for arrays.",
-            "Use `Array.prototype.forEach` or functional methods (`map`, `filter`) where appropriate.",
-            "Add strict equality checks (`===`) to avoid coercion bugs.",
-        ],
-        improved_code=(
-            "/**\n"
-            " * Prints each item in the array.\n"
-            " * @param {Array} arr\n"
-            " */\n"
-            "function processItems(arr) {\n"
-            "  if (!Array.isArray(arr)) {\n"
-            "    throw new TypeError('arr must be an array');\n"
-            "  }\n"
-            "  for (const item of arr) {\n"
-            "    console.log(item);\n"
-            "  }\n"
-            "}\n"
-        ),
-        explanation=(
-            "Replaced `var` with `const` to avoid hoisting and accidental re-assignment. "
-            "`for...of` is the modern, readable way to iterate arrays in JavaScript. "
-            "Added an `Array.isArray` guard to prevent runtime errors on bad input. "
-            "JSDoc was added to document the function's expected parameter type."
-        ),
-    ),
-    "java": ReviewResponse(
-        issues=[
-            "Raw types used instead of generics — causes unchecked cast warnings and potential ClassCastExceptions.",
-            "No null check on the collection parameter before iteration.",
-            "Integer overflow possible when accumulating values in `int` without bounds check.",
-        ],
-        suggestions=[
-            "Use the enhanced for-each loop instead of index-based iteration.",
-            "Prefer `List<T>` with generics over raw `List` types.",
-            "Use `Optional<T>` to express nullable return values explicitly.",
-            "Consider `Stream` API for functional-style transformations.",
-        ],
-        improved_code=(
-            "import java.util.List;\n"
-            "import java.util.Objects;\n\n"
-            "public class ArrayProcessor {\n\n"
-            "    /**\n"
-            "     * Prints each element of the list.\n"
-            "     *\n"
-            "     * @param items a non-null list of items to print\n"
-            "     */\n"
-            "    public static <T> void processItems(List<T> items) {\n"
-            "        Objects.requireNonNull(items, \"items must not be null\");\n"
-            "        for (T item : items) {\n"
-            "            System.out.println(item);\n"
-            "        }\n"
-            "    }\n"
-            "}\n"
-        ),
-        explanation=(
-            "Introduced a generic type parameter `<T>` to eliminate raw types and enable compile-time type safety. "
-            "Replaced the index-based loop with an enhanced for-each loop — cleaner and less error-prone. "
-            "`Objects.requireNonNull` provides a clear, early failure on null input instead of a NullPointerException deep in the loop."
-        ),
-    ),
-    "cpp": ReviewResponse(
-        issues=[
-            "Using `int` index with `std::vector::size()` (which returns `size_t`) causes signed/unsigned comparison warnings.",
-            "No bounds checking — accessing out-of-range indices causes undefined behaviour.",
-            "Missing `const` qualifier on the parameter — prevents passing const containers.",
-        ],
-        suggestions=[
-            "Use a range-based for loop instead of index-based iteration.",
-            "Pass containers by `const` reference to avoid unnecessary copies.",
-            "Use `auto` to deduce element types and reduce verbosity.",
-            "Prefer `std::size_t` or range-based loops to avoid signed/unsigned mismatch.",
-        ],
-        improved_code=(
-            "#include <iostream>\n"
-            "#include <vector>\n\n"
-            "/**\n"
-            " * Prints each element in the vector.\n"
-            " * @param items  read-only reference to the vector\n"
-            " */\n"
-            "template <typename T>\n"
-            "void processItems(const std::vector<T>& items) {\n"
-            "    for (const auto& item : items) {\n"
-            "        std::cout << item << '\\n';\n"
-            "    }\n"
-            "}\n"
-        ),
-        explanation=(
-            "A range-based for loop eliminates index arithmetic and signed/unsigned mismatch. "
-            "The parameter is now `const std::vector<T>&` — const prevents modification, the reference avoids a copy. "
-            "Templating makes the function reusable for any element type. "
-            "`'\\n'` is preferred over `std::endl` because it avoids flushing the stream on every iteration."
-        ),
-    ),
-}
-
-_DEFAULT_RESPONSE = ReviewResponse(
-    issues=["Unable to detect language-specific patterns for a detailed analysis."],
-    suggestions=["Ensure the correct language is selected for better suggestions."],
-    improved_code="# No improved code available for this language in mock mode.",
-    explanation="This is a mock response. Set AI_PROVIDER and the corresponding API key for real AI-powered reviews.",
 )
 
 

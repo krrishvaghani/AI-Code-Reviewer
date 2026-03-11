@@ -15,6 +15,28 @@ const SECTIONS = [
     },
   },
   {
+    key: 'performance_issues',
+    title: 'Performance Issues',
+    icon: '⏱',
+    colorClass: {
+      border: 'border-orange-700/50',
+      text: 'text-orange-400',
+      badge: 'bg-orange-900/60 text-orange-300',
+      dot: 'bg-orange-500',
+    },
+  },
+  {
+    key: 'security_issues',
+    title: 'Security Vulnerabilities',
+    icon: '🔒',
+    colorClass: {
+      border: 'border-rose-800/50',
+      text: 'text-rose-400',
+      badge: 'bg-rose-900/60 text-rose-300',
+      dot: 'bg-rose-500',
+    },
+  },
+  {
     key: 'suggestions',
     title: 'Optimization Suggestions',
     icon: '⚡',
@@ -172,6 +194,8 @@ function ErrorState({ message }) {
 export default function ReviewPanel({ review, isLoading, error, language, loadingMessage, reviewedAt }) {
   const [openSections, setOpenSections] = useState({
     issues: true,
+    performance_issues: true,
+    security_issues: true,
     suggestions: true,
     complexity: true,
     improved_code: true,
@@ -182,6 +206,16 @@ export default function ReviewPanel({ review, isLoading, error, language, loadin
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const expandAll = () => setOpenSections({
+    issues: true,
+    performance_issues: true,
+    security_issues: true,
+    suggestions: true,
+    complexity: true,
+    improved_code: true,
+    explanation: true,
+  });
+
   const monacoLanguage = language === 'cpp' ? 'cpp' : language;
 
   const formattedTime = reviewedAt
@@ -191,7 +225,7 @@ export default function ReviewPanel({ review, isLoading, error, language, loadin
   // Helper so we can render ReviewSections and insert ComplexityCard in between
   const renderSection = (section) => {
     const value = review[section.key];
-    if (!value) return null;
+    if (!value || (Array.isArray(value) && value.length === 0)) return null;
     return (
       <ReviewSection
         key={section.key}
@@ -220,7 +254,7 @@ export default function ReviewPanel({ review, isLoading, error, language, loadin
         </div>
         {review && (
           <button
-            onClick={() => setOpenSections({ issues: true, suggestions: true, complexity: true, improved_code: true, explanation: true })}
+            onClick={expandAll}
             className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
           >
             Expand All
@@ -239,7 +273,9 @@ export default function ReviewPanel({ review, isLoading, error, language, loadin
         {!isLoading && !error && review && (
           <>
             {renderSection(SECTIONS[0])}  {/* issues */}
-            {renderSection(SECTIONS[1])}  {/* suggestions */}
+            {renderSection(SECTIONS[1])}  {/* performance_issues */}
+            {renderSection(SECTIONS[2])}  {/* security_issues */}
+            {renderSection(SECTIONS[3])}  {/* suggestions */}
 
             {/* Complexity Analysis — inserted between suggestions and improved code */}
             {review.complexity && (
@@ -250,8 +286,8 @@ export default function ReviewPanel({ review, isLoading, error, language, loadin
               />
             )}
 
-            {renderSection(SECTIONS[2])}  {/* improved_code */}
-            {renderSection(SECTIONS[3])}  {/* explanation */}
+            {renderSection(SECTIONS[4])}  {/* improved_code */}
+            {renderSection(SECTIONS[5])}  {/* explanation */}
           </>
         )}
       </div>
