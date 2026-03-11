@@ -12,12 +12,12 @@ from models.schemas import ReviewResponse
 
 _MOCK_RESPONSES: dict[str, ReviewResponse] = {
     "python": ReviewResponse(
-        bugs=[
+        issues=[
             "Using `range(len(arr))` is fragile — it raises an IndexError if `arr` is None.",
             "No input validation: the function will crash if a non-iterable is passed.",
             "Integer division used implicitly in some expressions (Python 2 legacy pattern).",
         ],
-        optimizations=[
+        suggestions=[
             "Replace index-based loops with direct iteration (`for item in arr`).",
             "Use list comprehensions or generator expressions for transformations.",
             "Add type hints to improve readability and enable static analysis.",
@@ -40,12 +40,12 @@ _MOCK_RESPONSES: dict[str, ReviewResponse] = {
         ),
     ),
     "javascript": ReviewResponse(
-        bugs=[
+        issues=[
             "`var` declarations are function-scoped, causing unintended hoisting bugs.",
             "No null/undefined check before iterating — will throw if the array is falsy.",
             "Implicit type coercion in comparisons (e.g., `==` instead of `===`).",
         ],
-        optimizations=[
+        suggestions=[
             "Replace `var` with `const` / `let` for block-scoped variables.",
             "Use `for...of` instead of index-based `for` loops for arrays.",
             "Use `Array.prototype.forEach` or functional methods (`map`, `filter`) where appropriate.",
@@ -73,12 +73,12 @@ _MOCK_RESPONSES: dict[str, ReviewResponse] = {
         ),
     ),
     "java": ReviewResponse(
-        bugs=[
+        issues=[
             "Raw types used instead of generics — causes unchecked cast warnings and potential ClassCastExceptions.",
             "No null check on the collection parameter before iteration.",
             "Integer overflow possible when accumulating values in `int` without bounds check.",
         ],
-        optimizations=[
+        suggestions=[
             "Use the enhanced for-each loop instead of index-based iteration.",
             "Prefer `List<T>` with generics over raw `List` types.",
             "Use `Optional<T>` to express nullable return values explicitly.",
@@ -108,12 +108,12 @@ _MOCK_RESPONSES: dict[str, ReviewResponse] = {
         ),
     ),
     "cpp": ReviewResponse(
-        bugs=[
+        issues=[
             "Using `int` index with `std::vector::size()` (which returns `size_t`) causes signed/unsigned comparison warnings.",
             "No bounds checking — accessing out-of-range indices causes undefined behaviour.",
             "Missing `const` qualifier on the parameter — prevents passing const containers.",
         ],
-        optimizations=[
+        suggestions=[
             "Use a range-based for loop instead of index-based iteration.",
             "Pass containers by `const` reference to avoid unnecessary copies.",
             "Use `auto` to deduce element types and reduce verbosity.",
@@ -143,10 +143,10 @@ _MOCK_RESPONSES: dict[str, ReviewResponse] = {
 }
 
 _DEFAULT_RESPONSE = ReviewResponse(
-    bugs=["Unable to detect language-specific patterns for a detailed analysis."],
-    optimizations=["Ensure the correct language is selected for better suggestions."],
+    issues=["Unable to detect language-specific patterns for a detailed analysis."],
+    suggestions=["Ensure the correct language is selected for better suggestions."],
     improved_code="# No improved code available for this language in mock mode.",
-    explanation="This is a mock response. Connect the Gemini API for real AI-powered reviews.",
+    explanation="This is a mock response. Set AI_PROVIDER and the corresponding API key for real AI-powered reviews.",
 )
 
 

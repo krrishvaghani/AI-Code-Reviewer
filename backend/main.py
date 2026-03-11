@@ -59,10 +59,19 @@ app.include_router(review_router)
 
 @app.get("/health", tags=["health"], summary="Health check")
 async def health_check() -> dict:
+    provider = settings.ai_provider.lower()
+    if settings.use_mock:
+        ai_mode = "mock"
+    elif provider == "openai":
+        ai_mode = f"openai ({settings.openai_model})" if settings.openai_api_key else "mock (no OPENAI_API_KEY)"
+    else:
+        ai_mode = f"gemini ({settings.gemini_model})" if settings.gemini_api_key else "mock (no GEMINI_API_KEY)"
+
     return {
         "status": "ok",
         "version": "1.0.0",
-        "ai_mode": "mock" if settings.use_mock or not settings.gemini_api_key else "gemini",
+        "ai_provider": provider,
+        "ai_mode": ai_mode,
     }
 
 
@@ -72,6 +81,12 @@ async def health_check() -> dict:
 
 @app.on_event("startup")
 async def on_startup() -> None:
-    mode = "MOCK" if settings.use_mock or not settings.gemini_api_key else f"GEMINI ({settings.gemini_model})"
+    provider = settings.ai_provider.lower()
+    if settings.use_mock:
+        mode = "MOCK"
+    elif provider == "openai":
+        mode = f"OPENAI ({settings.openai_model})" if settings.openai_api_key else "MOCK (no OPENAI_API_KEY set)"
+    else:
+        mode = f"GEMINI ({settings.gemini_model})" if settings.gemini_api_key else "MOCK (no GEMINI_API_KEY set)"
     logger.info("AI Code Reviewer API started — AI mode: %s", mode)
     logger.info("Interactive docs: http://localhost:8000/docs")

@@ -26,7 +26,7 @@ class ReviewRequest(BaseModel):
 
 
 class ReviewResponse(BaseModel):
-    bugs: List[str]
-    optimizations: List[str]
+    issues: List[str]
+    suggestions: List[str]
     improved_code: str
     explanation: str

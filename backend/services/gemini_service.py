@@ -25,8 +25,8 @@ _PROMPT_TEMPLATE = """You are an expert software engineer and code reviewer.
 Analyze the following {language} code and respond ONLY with a valid JSON object — no markdown, no backticks, no extra text.
 
 The JSON must have exactly these four keys:
-- "bugs": a JSON array of strings describing bugs, errors, or code smells found (empty array if none)
-- "optimizations": a JSON array of strings with improvement suggestions (empty array if none)
+- "issues": a JSON array of strings describing bugs, errors, or code smells found (empty array if none)
+- "suggestions": a JSON array of strings with improvement suggestions (empty array if none)
 - "improved_code": a single string containing the fully rewritten, improved version of the code
 - "explanation": a single string explaining what was changed and why
 
@@ -53,8 +53,8 @@ def _parse_response(raw: str) -> ReviewResponse:
     data = json.loads(cleaned)
 
     return ReviewResponse(
-        bugs=data.get("bugs", []),
-        optimizations=data.get("optimizations", []),
+        issues=data.get("issues", []),
+        suggestions=data.get("suggestions", []),
         improved_code=data.get("improved_code", ""),
         explanation=data.get("explanation", ""),
     )

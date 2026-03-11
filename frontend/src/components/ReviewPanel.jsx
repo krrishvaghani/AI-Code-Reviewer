@@ -4,7 +4,7 @@ import LoadingSpinner from './LoadingSpinner';
 
 const SECTIONS = [
   {
-    key: 'bugs',
+    key: 'issues',
     title: 'Detected Issues',
     icon: '🐛',
     colorClass: {
@@ -15,7 +15,7 @@ const SECTIONS = [
     },
   },
   {
-    key: 'optimizations',
+    key: 'suggestions',
     title: 'Optimization Suggestions',
     icon: '⚡',
     colorClass: {
@@ -80,7 +80,7 @@ function ErrorState({ message }) {
 }
 
 export default function ReviewPanel({ review, isLoading, error, language }) {
-  const [openSections, setOpenSections] = useState({ bugs: true, optimizations: true, improved_code: true, explanation: true });
+  const [openSections, setOpenSections] = useState({ issues: true, suggestions: true, improved_code: true, explanation: true });
 
   const toggleSection = (key) => {
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -98,7 +98,7 @@ export default function ReviewPanel({ review, isLoading, error, language }) {
         </div>
         {review && (
           <button
-            onClick={() => setOpenSections({ bugs: true, optimizations: true, improved_code: true, explanation: true })}
+            onClick={() => setOpenSections({ issues: true, suggestions: true, improved_code: true, explanation: true })}
             className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
           >
             Expand All
