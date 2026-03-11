@@ -9,6 +9,8 @@ from routes.review import router as review_router
 from routes.chat import router as chat_router
 from routes.github_review import router as github_router
 from routes.github_webhook import router as webhook_router
+from routes.auth import router as auth_router
+from routes.history import router as history_router
 
 # ---------------------------------------------------------------------------
 # Logging setup
@@ -57,6 +59,8 @@ app.include_router(review_router)
 app.include_router(chat_router)
 app.include_router(github_router)
 app.include_router(webhook_router)
+app.include_router(auth_router)
+app.include_router(history_router)
 
 
 # ---------------------------------------------------------------------------
@@ -94,6 +98,11 @@ async def health_check() -> dict:
 
 @app.on_event("startup")
 async def on_startup() -> None:
+    # Create all database tables (idempotent — won't overwrite existing data)
+    from database import engine, Base
+    import models.db_models  # noqa: F401 — must import models to register them
+    Base.metadata.create_all(bind=engine)
+
     provider = settings.ai_provider.lower()
     if settings.use_mock:
         mode = "MOCK"

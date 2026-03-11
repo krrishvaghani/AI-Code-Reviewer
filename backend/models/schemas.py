@@ -1,5 +1,6 @@
-from pydantic import BaseModel, field_validator
-from typing import List, Optional
+from datetime import datetime
+from pydantic import BaseModel, EmailStr, field_validator
+from typing import List, Optional, Any
 from enum import Enum
 
 
@@ -111,6 +112,71 @@ class GithubReviewResponse(BaseModel):
     files_analyzed: int
     structure_summary: str
     overall_quality: str
+
+
+# ---------------------------------------------------------------------------
+# Authentication
+# ---------------------------------------------------------------------------
+
+class SignupRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+
+    @field_validator("name")
+    @classmethod
+    def name_not_empty(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Name cannot be empty")
+        return v
+
+    @field_validator("password")
+    @classmethod
+    def password_length(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        return v
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class UserOut(BaseModel):
+    id: int
+    name: str
+    email: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserOut
+
+
+# ---------------------------------------------------------------------------
+# Review History
+# ---------------------------------------------------------------------------
+
+class HistoryItemOut(BaseModel):
+    id: int
+    language: str
+    code_snippet: Optional[str] = None
+    review_type: str
+    title: str
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class SaveHistoryRequest(BaseModel):
+    language: str
+    code: str
+    result: Any
+    review_type: str = "code"
+    title: str = "Code Review"
     top_issues: List[str]
     top_suggestions: List[str]
     file_reviews: List[FileReview]

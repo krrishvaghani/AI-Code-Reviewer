@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     # Used to verify HMAC-SHA256 signatures on incoming webhook payloads
     github_webhook_secret: str = ""
 
+    # -----------------------------------------------------------------------
+    # JWT — authentication
+    # Change to a long random string in production!
+    # -----------------------------------------------------------------------
+    jwt_secret: str = "change-me-to-a-long-random-secret-in-production"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

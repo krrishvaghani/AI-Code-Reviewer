@@ -18,6 +18,13 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   config.metadata = { startTime: Date.now() };
+  try {
+    const raw = localStorage.getItem('ai_reviewer_auth');
+    if (raw) {
+      const { token } = JSON.parse(raw);
+      if (token) config.headers.Authorization = `Bearer ${token}`;
+    }
+  } catch { /* ignore */ }
   return config;
 });
 
