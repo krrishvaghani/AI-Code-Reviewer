@@ -64,6 +64,12 @@ app.include_router(github_router)
 @app.get("/health", tags=["health"], summary="Health check")
 async def health_check() -> dict:
     provider = settings.ai_provider.lower()
+    mock_mode = settings.use_mock or (
+        provider == "openai" and not settings.openai_api_key
+    ) or (
+        provider != "openai" and not settings.gemini_api_key
+    )
+
     if settings.use_mock:
         ai_mode = "mock"
     elif provider == "openai":
@@ -76,6 +82,7 @@ async def health_check() -> dict:
         "version": "1.0.0",
         "ai_provider": provider,
         "ai_mode": ai_mode,
+        "mock_mode": mock_mode,
     }
 
 

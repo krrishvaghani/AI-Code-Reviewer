@@ -1,0 +1,40 @@
+services:
+  # -----------------------------------------------------------------------
+  # FastAPI backend — deployed as a Render Web Service
+  # -----------------------------------------------------------------------
+  - type: web
+    name: ai-code-reviewer-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    plan: free          # change to "starter" for always-on behaviour
+    region: oregon      # choose the region closest to your users
+
+    envVars:
+      # AI Provider --------------------------------------------------------
+      - key: AI_PROVIDER
+        value: openai           # or "gemini"
+
+      # OpenAI (required when AI_PROVIDER=openai) --------------------------
+      - key: OPENAI_API_KEY
+        sync: false             # set manually in the Render dashboard
+
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+
+      # Gemini (required when AI_PROVIDER=gemini) --------------------------
+      - key: GEMINI_API_KEY
+        sync: false             # set manually in the Render dashboard
+
+      - key: GEMINI_MODEL
+        value: gemini-2.0-flash
+
+      # Disable mock mode in production ------------------------------------
+      - key: USE_MOCK
+        value: false
+
+      # CORS — update AFTER Vercel gives you the frontend URL --------------
+      # Replace the placeholder with your real Vercel URL once deployed.
+      - key: ALLOWED_ORIGINS
+        value: https://ai-code-reviewer.vercel.app,https://ai-code-reviewer-git-main.vercel.app
