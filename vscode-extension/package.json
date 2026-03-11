@@ -1,0 +1,113 @@
+{
+  "name": "ai-code-reviewer",
+  "displayName": "AI Code Reviewer",
+  "description": "Review your code with AI — detect bugs, get optimization suggestions, and chat with an AI assistant about your code.",
+  "version": "1.0.0",
+  "publisher": "ai-code-reviewer",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/krrishvaghani/AI-Code-Reviewer"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Linters"
+  ],
+  "keywords": [
+    "ai",
+    "code review",
+    "openai",
+    "gemini",
+    "code quality"
+  ],
+  "activationEvents": [],
+  "main": "./src/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "aiCodeReviewer.reviewSelection",
+        "title": "AI Review: Review Selected Code",
+        "category": "AI Code Reviewer"
+      },
+      {
+        "command": "aiCodeReviewer.reviewFile",
+        "title": "AI Review: Review Entire File",
+        "category": "AI Code Reviewer"
+      },
+      {
+        "command": "aiCodeReviewer.chatWithCode",
+        "title": "AI Review: Chat About Selected Code",
+        "category": "AI Code Reviewer"
+      },
+      {
+        "command": "aiCodeReviewer.setBackendUrl",
+        "title": "AI Review: Set Backend URL",
+        "category": "AI Code Reviewer"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "aiCodeReviewer.reviewSelection",
+          "when": "editorHasSelection",
+          "group": "aiCodeReviewer@1"
+        },
+        {
+          "command": "aiCodeReviewer.reviewFile",
+          "when": "editorIsOpen",
+          "group": "aiCodeReviewer@2"
+        },
+        {
+          "command": "aiCodeReviewer.chatWithCode",
+          "when": "editorHasSelection",
+          "group": "aiCodeReviewer@3"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "aiCodeReviewer.reviewSelection",
+        "key": "ctrl+shift+r",
+        "mac": "cmd+shift+r",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "aiCodeReviewer.chatWithCode",
+        "key": "ctrl+shift+c",
+        "mac": "cmd+shift+c",
+        "when": "editorTextFocus && editorHasSelection"
+      }
+    ],
+    "configuration": {
+      "title": "AI Code Reviewer",
+      "properties": {
+        "aiCodeReviewer.backendUrl": {
+          "type": "string",
+          "default": "http://localhost:8000",
+          "description": "Base URL of the AI Code Reviewer FastAPI backend (no trailing slash).",
+          "examples": [
+            "http://localhost:8000",
+            "https://ai-code-reviewer-api.onrender.com"
+          ]
+        },
+        "aiCodeReviewer.requestTimeoutSeconds": {
+          "type": "number",
+          "default": 90,
+          "minimum": 10,
+          "maximum": 300,
+          "description": "Maximum time (seconds) to wait for an AI response."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "lint": "eslint src",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.0.0"
+  }
+}

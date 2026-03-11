@@ -1,0 +1,17 @@
+# Files/folders excluded when packaging with `vsce package`
+
+node_modules/**
+.git/**
+.vscode/**
+**/.eslintrc*
+**/.eslintignore
+**/tsconfig*
+**/*.ts
+**/*.map
+**/jest.config*
+**/test/**
+**/tests/**
+**/__tests__/**
+*.vsix
+.DS_Store
+Thumbs.db
