@@ -15,7 +15,7 @@ import logging
 from openai import OpenAI
 
 from core.config import settings
-from models.schemas import ReviewResponse
+from models.schemas import ReviewResponse, ComplexityAnalysis
 from services.mock_service import get_mock_review
 
 logger = logging.getLogger(__name__)
@@ -34,11 +34,17 @@ _SYSTEM_PROMPT = (
 
 _USER_PROMPT_TEMPLATE = """Analyze the following {language} code and provide a thorough code review.
 
-Return ONLY a JSON object with exactly these four keys:
-- "issues": a JSON array of strings — each string describes one bug, error, code smell, or bad practice found (empty array if code is perfect)
-- "suggestions": a JSON array of strings — each string is one actionable optimization or improvement suggestion (empty array if none)
-- "improved_code": a single string — the fully rewritten, corrected, and optimized version of the code
-- "explanation": a single string — a clear explanation of every change made and why it improves the code
+Return ONLY a JSON object with exactly these five keys:
+- "issues": array of strings — each describes one bug, error, code smell, or bad practice (empty array if none)
+- "suggestions": array of strings — each is one actionable optimization or improvement suggestion (empty array if none)
+- "improved_code": string — the fully rewritten, corrected, and optimized version of the code
+- "explanation": string — a clear explanation of every change made and why it improves the code
+- "complexity": object with exactly these fields:
+    - "time_complexity": string — Big-O notation (e.g. "O(n)", "O(n²)", "O(log n)")
+    - "space_complexity": string — Big-O notation for memory usage
+    - "has_nested_loops": boolean — true if the code contains nested loops or recursive calls that worsen complexity
+    - "bottlenecks": array of strings — each describes a specific inefficiency or bottleneck found
+    - "optimization_hint": string — one concise sentence on the single best optimization to apply
 
 Code to review ({language}):
 ```{language}
@@ -47,10 +53,17 @@ Code to review ({language}):
 
 Respond with ONLY the JSON object. Example structure:
 {{
-  "issues": ["Issue 1 description", "Issue 2 description"],
-  "suggestions": ["Suggestion 1", "Suggestion 2"],
+  "issues": ["Issue 1"],
+  "suggestions": ["Suggestion 1"],
   "improved_code": "// improved code here",
-  "explanation": "The changes improve X because Y..."
+  "explanation": "The changes improve X because Y...",
+  "complexity": {{
+    "time_complexity": "O(n)",
+    "space_complexity": "O(1)",
+    "has_nested_loops": false,
+    "bottlenecks": ["Linear scan without early exit"],
+    "optimization_hint": "Use a hash set for O(1) lookups instead of O(n) scans."
+  }}
 }}"""
 
 
@@ -75,11 +88,25 @@ def _parse_response(raw: str) -> ReviewResponse:
     cleaned = re.sub(r"```(?:json)?\s*", "", raw).strip().rstrip("`").strip()
     data = json.loads(cleaned)
 
+    complexity = None
+    if c := data.get("complexity"):
+        try:
+            complexity = ComplexityAnalysis(
+                time_complexity=c.get("time_complexity", "Unknown"),
+                space_complexity=c.get("space_complexity", "Unknown"),
+                has_nested_loops=bool(c.get("has_nested_loops", False)),
+                bottlenecks=c.get("bottlenecks", []),
+                optimization_hint=c.get("optimization_hint", ""),
+            )
+        except Exception:
+            pass
+
     return ReviewResponse(
         issues=data.get("issues", []),
         suggestions=data.get("suggestions", []),
         improved_code=data.get("improved_code", ""),
         explanation=data.get("explanation", ""),
+        complexity=complexity,
     )
 
 

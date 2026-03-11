@@ -71,11 +71,36 @@ api.interceptors.response.use(
  *   issues: string[],
  *   suggestions: string[],
  *   improved_code: string,
- *   explanation: string
+ *   explanation: string,
+ *   complexity: { time_complexity: string, space_complexity: string, has_nested_loops: boolean, bottlenecks: string[], optimization_hint: string } | null
  * }>}
  */
 export async function reviewCode(code, language) {
   const response = await api.post('/api/review', { code, language });
+  return response.data;
+}
+
+/**
+ * Ask the AI a question about a code snippet.
+ *
+ * @param {string} code      - The code to discuss
+ * @param {string} question  - The user's question
+ * @param {string} language  - Programming language hint
+ * @returns {Promise<{ answer: string }>}
+ */
+export async function chatWithCode(code, question, language) {
+  const response = await api.post('/api/chat-with-code', { code, question, language });
+  return response.data;
+}
+
+/**
+ * Analyse a public GitHub repository.
+ *
+ * @param {string} repoUrl - https://github.com/owner/repo
+ * @returns {Promise<GithubReviewResponse>}
+ */
+export async function reviewGithubRepo(repoUrl) {
+  const response = await api.post('/api/github-review', { repo_url: repoUrl });
   return response.data;
 }
 
