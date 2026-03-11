@@ -1,4 +1,4 @@
-export default function LoadingSpinner() {
+export default function LoadingSpinner({ message = 'Analyzing your code…' }) {
   return (
     <div className="flex flex-col items-center justify-center h-full gap-4 py-16">
       {/* Animated rings */}
@@ -8,10 +8,10 @@ export default function LoadingSpinner() {
         <div className="absolute inset-2 rounded-full border-4 border-transparent border-t-indigo-300 animate-spin" style={{ animationDuration: '0.6s', animationDirection: 'reverse' }}></div>
       </div>
 
-      {/* Status text */}
+      {/* Dynamic status message */}
       <div className="text-center">
-        <p className="text-sm font-medium text-gray-300">Analyzing your code...</p>
-        <p className="text-xs text-gray-500 mt-1">Gemini AI is reviewing for bugs, optimizations, and improvements</p>
+        <p className="text-sm font-semibold text-gray-200 transition-all duration-500">{message}</p>
+        <p className="text-xs text-gray-500 mt-1">Gemini / OpenAI is reviewing your code</p>
       </div>
 
       {/* Animated dots */}

@@ -79,7 +79,7 @@ function ErrorState({ message }) {
   );
 }
 
-export default function ReviewPanel({ review, isLoading, error, language }) {
+export default function ReviewPanel({ review, isLoading, error, language, loadingMessage, reviewedAt }) {
   const [openSections, setOpenSections] = useState({ issues: true, suggestions: true, improved_code: true, explanation: true });
 
   const toggleSection = (key) => {
@@ -88,6 +88,10 @@ export default function ReviewPanel({ review, isLoading, error, language }) {
 
   const monacoLanguage = language === 'cpp' ? 'cpp' : language;
 
+  const formattedTime = reviewedAt
+    ? reviewedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : null;
+
   return (
     <div className="flex flex-col h-full">
       {/* Panel header */}
@@ -95,6 +99,9 @@ export default function ReviewPanel({ review, isLoading, error, language }) {
         <div className="flex items-center gap-2">
           <span className="text-base">📋</span>
           <span className="text-sm font-semibold text-gray-200">Review Output</span>
+          {formattedTime && (
+            <span className="text-xs text-gray-500 font-mono ml-1">· last reviewed {formattedTime}</span>
+          )}
         </div>
         {review && (
           <button
@@ -108,7 +115,7 @@ export default function ReviewPanel({ review, isLoading, error, language }) {
 
       {/* Panel body */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 rounded-b-lg border border-t-0 border-gray-700 bg-gray-900/40">
-        {isLoading && <LoadingSpinner />}
+        {isLoading && <LoadingSpinner message={loadingMessage} />}
 
         {!isLoading && error && <ErrorState message={error} />}
 

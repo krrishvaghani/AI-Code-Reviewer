@@ -2,6 +2,7 @@ import Header from './components/Header';
 import CodeEditor from './components/CodeEditor';
 import LanguageSelector from './components/LanguageSelector';
 import ReviewPanel from './components/ReviewPanel';
+import StatusBar from './components/StatusBar';
 import { useCodeReview } from './hooks/useCodeReview';
 
 function App() {
@@ -11,6 +12,8 @@ function App() {
     review,
     isLoading,
     error,
+    loadingMessage,
+    reviewedAt,
     setCode,
     handleLanguageChange,
     handleReview,
@@ -82,10 +85,15 @@ function App() {
               isLoading={isLoading}
               error={error}
               language={language}
+              loadingMessage={loadingMessage}
+              reviewedAt={reviewedAt}
             />
           </div>
         </div>
       </main>
+
+      {/* Status bar at the bottom */}
+      <StatusBar code={code} reviewedAt={reviewedAt} />
     </div>
   );
 }
