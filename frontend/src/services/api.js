@@ -70,16 +70,27 @@ api.interceptors.response.use(
 // ---------------------------------------------------------------------------
 
 /**
- * Send source code to the backend for AI review.
+ * Send source code to the backend for AI review + static analysis.
  *
  * @param {string} code     - Source code to review
  * @param {string} language - One of: python | javascript | java | cpp
  * @returns {Promise<{
- *   issues: string[],
- *   suggestions: string[],
- *   improved_code: string,
- *   explanation: string,
- *   complexity: { time_complexity: string, space_complexity: string, has_nested_loops: boolean, bottlenecks: string[], optimization_hint: string } | null
+ *   static_analysis: Array<{
+ *     line: number|null, column: number|null,
+ *     severity: "error"|"warning"|"info",
+ *     code: string, message: string, tool: string
+ *   }>,
+ *   ai_review: {
+ *     issues: string[],
+ *     performance_issues: string[],
+ *     security_issues: string[],
+ *     suggestions: string[],
+ *     improved_code: string,
+ *     explanation: string,
+ *     complexity: { time_complexity: string, space_complexity: string,
+ *                   has_nested_loops: boolean, bottlenecks: string[],
+ *                   optimization_hint: string } | null
+ *   }
  * }>}
  */
 export async function reviewCode(code, language) {

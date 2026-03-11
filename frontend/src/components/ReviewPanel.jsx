@@ -72,8 +72,79 @@ const SECTIONS = [
 ];
 
 // ---------------------------------------------------------------------------
-// Complexity card — rendered between suggestions and improved_code
+// Static Analysis card — shows linter findings from pylint / eslint
 // ---------------------------------------------------------------------------
+
+const SEVERITY_STYLES = {
+  error:   { badge: 'bg-red-900/60 text-red-300 border border-red-700/40',   dot: 'bg-red-500',    label: 'error'   },
+  warning: { badge: 'bg-yellow-900/60 text-yellow-300 border border-yellow-700/40', dot: 'bg-yellow-500', label: 'warning' },
+  info:    { badge: 'bg-blue-900/60 text-blue-300 border border-blue-700/40',  dot: 'bg-blue-400',   label: 'info'    },
+};
+
+function StaticAnalysisCard({ findings, isOpen, onToggle }) {
+  if (!findings || findings.length === 0) return null;
+
+  const errorCount   = findings.filter((f) => f.severity === 'error').length;
+  const warningCount = findings.filter((f) => f.severity === 'warning').length;
+
+  return (
+    <div className="rounded-lg border border-violet-800/50 bg-gray-900/60 overflow-hidden">
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-800/50 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-lg">🔍</span>
+          <span className="text-sm font-semibold text-violet-400">Static Analysis</span>
+          {errorCount > 0 && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-red-900/50 text-red-300 border border-red-700/40">
+              {errorCount} error{errorCount !== 1 ? 's' : ''}
+            </span>
+          )}
+          {warningCount > 0 && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-900/50 text-yellow-300 border border-yellow-700/40">
+              {warningCount} warning{warningCount !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+        <svg
+          className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <ul className="px-4 pb-4 border-t border-gray-700/50 space-y-2 mt-3">
+          {findings.map((f, i) => {
+            const style = SEVERITY_STYLES[f.severity] ?? SEVERITY_STYLES.warning;
+            return (
+              <li key={i} className="flex items-start gap-2">
+                <span className={`mt-1.5 flex-shrink-0 w-2 h-2 rounded-full ${style.dot}`} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
+                    <span className={`text-xs px-1.5 py-0.5 rounded font-mono ${style.badge}`}>
+                      {style.label}
+                    </span>
+                    <span className="text-xs text-gray-500 font-mono">{f.tool}</span>
+                    {f.code && (
+                      <span className="text-xs text-gray-600 font-mono">{f.code}</span>
+                    )}
+                    {f.line != null && (
+                      <span className="text-xs text-gray-600">line {f.line}{f.column != null ? `:${f.column}` : ''}</span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-300 leading-relaxed">{f.message}</p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 function ComplexityCard({ complexity, isOpen, onToggle }) {
   const hasIssue = complexity.has_nested_loops || complexity.bottlenecks.length > 0;
@@ -197,6 +268,7 @@ export default function ReviewPanel({ review, isLoading, error, language, loadin
     performance_issues: true,
     security_issues: true,
     suggestions: true,
+    static_analysis: true,
     complexity: true,
     improved_code: true,
     explanation: true,
@@ -211,6 +283,7 @@ export default function ReviewPanel({ review, isLoading, error, language, loadin
     performance_issues: true,
     security_issues: true,
     suggestions: true,
+    static_analysis: true,
     complexity: true,
     improved_code: true,
     explanation: true,
@@ -224,7 +297,7 @@ export default function ReviewPanel({ review, isLoading, error, language, loadin
 
   // Helper so we can render ReviewSections and insert ComplexityCard in between
   const renderSection = (section) => {
-    const value = review[section.key];
+    const value = review.ai_review[section.key];
     if (!value || (Array.isArray(value) && value.length === 0)) return null;
     return (
       <ReviewSection
@@ -272,15 +345,22 @@ export default function ReviewPanel({ review, isLoading, error, language, loadin
 
         {!isLoading && !error && review && (
           <>
+            {/* Static analysis — shown first, above all AI sections */}
+            <StaticAnalysisCard
+              findings={review.static_analysis}
+              isOpen={openSections.static_analysis}
+              onToggle={() => toggleSection('static_analysis')}
+            />
+
             {renderSection(SECTIONS[0])}  {/* issues */}
             {renderSection(SECTIONS[1])}  {/* performance_issues */}
             {renderSection(SECTIONS[2])}  {/* security_issues */}
             {renderSection(SECTIONS[3])}  {/* suggestions */}
 
             {/* Complexity Analysis — inserted between suggestions and improved code */}
-            {review.complexity && (
+            {review.ai_review.complexity && (
               <ComplexityCard
-                complexity={review.complexity}
+                complexity={review.ai_review.complexity}
                 isOpen={openSections.complexity}
                 onToggle={() => toggleSection('complexity')}
               />

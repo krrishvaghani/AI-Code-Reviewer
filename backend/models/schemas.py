@@ -27,6 +27,20 @@ class ReviewRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Static analysis
+# ---------------------------------------------------------------------------
+
+class StaticAnalysisFinding(BaseModel):
+    line:     Optional[int] = None
+    column:   Optional[int] = None
+    severity: str                        # "error" | "warning" | "info"
+    code:     str                        # e.g. "C0301", "no-unused-vars"
+    message:  str
+    tool:     str                        # "pylint" | "eslint"
+
+
+# ---------------------------------------------------------------------------
 # Complexity analysis
 # ---------------------------------------------------------------------------
 
@@ -46,6 +60,12 @@ class ReviewResponse(BaseModel):
     improved_code: str
     explanation: str
     complexity: Optional[ComplexityAnalysis] = None
+
+
+class FullReviewResponse(BaseModel):
+    """Top-level response returned by POST /api/review."""
+    static_analysis: List[StaticAnalysisFinding] = []  # linter findings (pylint / eslint)
+    ai_review: ReviewResponse                          # full AI analysis
 
 
 # ---------------------------------------------------------------------------
