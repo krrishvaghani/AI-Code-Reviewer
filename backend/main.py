@@ -8,6 +8,7 @@ from core.config import settings
 from routes.review import router as review_router
 from routes.chat import router as chat_router
 from routes.github_review import router as github_router
+from routes.github_webhook import router as webhook_router
 
 # ---------------------------------------------------------------------------
 # Logging setup
@@ -55,6 +56,7 @@ app.add_middleware(
 app.include_router(review_router)
 app.include_router(chat_router)
 app.include_router(github_router)
+app.include_router(webhook_router)
 
 
 # ---------------------------------------------------------------------------

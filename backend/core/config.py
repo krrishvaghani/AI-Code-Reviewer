@@ -30,6 +30,15 @@ class Settings(BaseSettings):
     # -----------------------------------------------------------------------
     allowed_origins: str = "http://localhost:5173,http://localhost:3000"
 
+    # -----------------------------------------------------------------------
+    # GitHub integration — for webhook PR reviewer
+    # -----------------------------------------------------------------------
+    # Personal Access Token (PAT) with repo + pull_requests scopes
+    github_token: str = ""
+    # Secret configured in GitHub repo → Settings → Webhooks → Secret
+    # Used to verify HMAC-SHA256 signatures on incoming webhook payloads
+    github_webhook_secret: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
