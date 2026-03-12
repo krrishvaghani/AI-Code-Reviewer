@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from fastapi import APIRouter, HTTPException, status
@@ -40,7 +41,8 @@ async def github_review_endpoint(request: GithubReviewRequest) -> GithubReviewRe
     logger.info("GitHub review request: %s", request.repo_url)
 
     try:
-        result = review_github_repo(repo_url=request.repo_url)
+        # Run the synchronous GitHub + AI service in a thread pool
+        result = await asyncio.to_thread(review_github_repo, repo_url=request.repo_url)
         return result
 
     except ValueError as exc:

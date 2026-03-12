@@ -11,8 +11,9 @@ Falls back to mock when USE_MOCK=true or OPENAI_API_KEY is missing.
 import json
 import re
 import logging
+import time as _time
 
-from openai import OpenAI
+from openai import OpenAI, APIConnectionError, RateLimitError, APIStatusError, APITimeoutError
 
 from core.config import settings
 from models.schemas import ReviewResponse, ComplexityAnalysis
@@ -161,12 +162,23 @@ def _parse_response(raw: str) -> ReviewResponse:
 # Public API
 # ---------------------------------------------------------------------------
 
+_RETRY_DELAY_S = 5   # seconds to wait before retrying on rate-limit
+
+
 def review_code_openai(language: str, code: str) -> ReviewResponse:
     """
     Send code to OpenAI Chat Completions for review.
     Returns a structured ReviewResponse.
 
     Falls back to mock if USE_MOCK=true or OPENAI_API_KEY is not set.
+
+    Error handling
+    --------------
+    RateLimitError       → retry once after 5 s, then raise RuntimeError (503)
+    APIConnectionError   → raise RuntimeError (503)
+    APITimeoutError      → raise RuntimeError (503)
+    APIStatusError       → raise RuntimeError with status code (503)
+    json.JSONDecodeError → raise ValueError (422)
     """
     if settings.use_mock or not settings.openai_api_key:
         logger.info(
@@ -176,36 +188,73 @@ def review_code_openai(language: str, code: str) -> ReviewResponse:
         )
         return get_mock_review(language)
 
-    try:
-        client = OpenAI(api_key=settings.openai_api_key)
+    client = OpenAI(api_key=settings.openai_api_key)
+    messages = _build_messages(language, code)
 
-        messages = _build_messages(language, code)
-        logger.info(
-            "Sending review request to OpenAI [model=%s, language=%s, code_length=%d]",
-            settings.openai_model,
-            language,
-            len(code),
-        )
+    logger.info(
+        "Sending review request to OpenAI [model=%s, language=%s, code_len=%d]",
+        settings.openai_model, language, len(code),
+    )
 
-        response = client.chat.completions.create(
-            model=settings.openai_model,
-            messages=messages,
-            temperature=0.2,          # Low temperature for consistent, factual output
-            max_tokens=4096,
-            response_format={"type": "json_object"},  # Force JSON mode
-        )
+    for attempt in range(2):  # try up to 2 times (one retry on rate-limit)
+        try:
+            response = client.chat.completions.create(
+                model=settings.openai_model,
+                messages=messages,
+                temperature=0.2,
+                max_tokens=4096,
+                response_format={"type": "json_object"},
+                timeout=60.0,
+            )
 
-        raw_text = response.choices[0].message.content or ""
-        logger.debug("Raw OpenAI response: %s", raw_text[:500])
+            raw_text = response.choices[0].message.content or ""
+            logger.debug("Raw OpenAI response (first 500 chars): %s", raw_text[:500])
+            return _parse_response(raw_text)
 
-        return _parse_response(raw_text)
+        except json.JSONDecodeError as exc:
+            logger.error("Failed to parse OpenAI JSON response: %s", exc)
+            raise ValueError(
+                "The AI returned an unexpected response format. Please try again."
+            ) from exc
 
-    except json.JSONDecodeError as exc:
-        logger.error("Failed to parse OpenAI JSON response: %s", exc)
-        raise ValueError(
-            "The AI returned an unexpected response format. Please try again."
-        ) from exc
+        except RateLimitError as exc:
+            if attempt == 0:
+                logger.warning(
+                    "OpenAI rate limit hit (attempt %d) — retrying in %ds…",
+                    attempt + 1, _RETRY_DELAY_S,
+                )
+                _time.sleep(_RETRY_DELAY_S)
+                continue
+            logger.error("OpenAI rate limit exceeded after retry: %s", exc)
+            raise RuntimeError(
+                "AI service rate limit exceeded. Please wait a moment and try again."
+            ) from exc
 
-    except Exception as exc:
-        logger.error("OpenAI API error: %s", exc)
-        raise RuntimeError(f"AI service error: {exc}") from exc
+        except APIConnectionError as exc:
+            logger.error("OpenAI connection error: %s", exc)
+            raise RuntimeError(
+                "AI service temporarily unavailable. Please try again later."
+            ) from exc
+
+        except APITimeoutError as exc:
+            logger.error("OpenAI request timed out: %s", exc)
+            raise RuntimeError(
+                "AI service request timed out. Please try again later."
+            ) from exc
+
+        except APIStatusError as exc:
+            logger.error(
+                "OpenAI API returned HTTP %d: %s", exc.status_code, exc.message
+            )
+            if exc.status_code in (500, 502, 503, 529):
+                raise RuntimeError(
+                    "AI service temporarily unavailable. Please try again later."
+                ) from exc
+            raise RuntimeError(
+                f"AI service returned an error (HTTP {exc.status_code}). Please try again."
+            ) from exc
+
+        except Exception as exc:
+            logger.error("Unexpected OpenAI error: %s", exc)
+            raise RuntimeError(f"AI service error: {exc}") from exc
+

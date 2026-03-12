@@ -4,6 +4,19 @@ from typing import List, Optional, Any
 from enum import Enum
 
 
+# ---------------------------------------------------------------------------
+# Standard error envelope
+# ---------------------------------------------------------------------------
+
+class ErrorResponse(BaseModel):
+    """
+    Structured error response returned by all error handlers.
+    Shape: {"status": "error", "message": "<human-readable reason>"}
+    """
+    status: str = "error"
+    message: str
+
+
 class Language(str, Enum):
     python = "python"
     javascript = "javascript"
@@ -23,6 +36,10 @@ class ReviewRequest(BaseModel):
             raise ValueError("code must not be empty")
         if len(stripped) > 20_000:
             raise ValueError("code must not exceed 20,000 characters")
+        # Reject obviously binary / non-text payloads
+        non_printable = sum(1 for c in stripped[:500] if not c.isprintable() and c not in "\n\r\t")
+        if non_printable > 20:
+            raise ValueError("code contains too many non-printable characters — only source code is accepted")
         return stripped
 
 

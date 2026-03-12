@@ -2,9 +2,17 @@ import logging
 import sys
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from core.config import settings
+from middleware.timing import TimingMiddleware
+from middleware.error_handler import (
+    http_exception_handler,
+    validation_exception_handler,
+    unhandled_exception_handler,
+)
 from routes.review import router as review_router
 from routes.chat import router as chat_router
 from routes.github_review import router as github_router
@@ -52,6 +60,20 @@ app.add_middleware(
 )
 
 # ---------------------------------------------------------------------------
+# Performance: request timing (logs + X-Response-Time header)
+# ---------------------------------------------------------------------------
+
+app.add_middleware(TimingMiddleware)
+
+# ---------------------------------------------------------------------------
+# Structured error responses — all errors → {"status": "error", "message": "…"}
+# ---------------------------------------------------------------------------
+
+app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(Exception, unhandled_exception_handler)
+
+# ---------------------------------------------------------------------------
 # Routers
 # ---------------------------------------------------------------------------
 
@@ -69,6 +91,7 @@ app.include_router(history_router)
 
 @app.get("/health", tags=["health"], summary="Health check")
 async def health_check() -> dict:
+    from core.cache import review_cache
     provider = settings.ai_provider.lower()
     mock_mode = settings.use_mock or (
         provider == "openai" and not settings.openai_api_key
@@ -89,7 +112,16 @@ async def health_check() -> dict:
         "ai_provider": provider,
         "ai_mode": ai_mode,
         "mock_mode": mock_mode,
+        "cache": review_cache.stats(),
     }
+
+
+@app.delete("/api/cache", tags=["health"], summary="Flush the review cache")
+async def flush_cache() -> dict:
+    """Clear all cached code reviews (admin / dev utility)."""
+    from core.cache import review_cache
+    await review_cache.clear()
+    return {"status": "ok", "message": "Review cache cleared."}
 
 
 # ---------------------------------------------------------------------------

@@ -7,6 +7,7 @@ Uses the current `google-genai` SDK (google.genai).
 import json
 import re
 import logging
+import time as _time
 
 from google import genai
 from google.genai import types
@@ -118,42 +119,84 @@ def _parse_response(raw: str) -> ReviewResponse:
 # Public API
 # ---------------------------------------------------------------------------
 
+_RETRY_DELAY_S = 5   # seconds to wait before retrying on quota/rate errors
+
+
 def review_code(language: str, code: str) -> ReviewResponse:
     """
     Send code to Gemini for review and return a structured ReviewResponse.
     Falls back to mock service if USE_MOCK=true or if the API key is missing.
+
+    Error handling
+    --------------
+    Quota / rate-limit errors (HTTP 429)  → retry once after 5 s, then 503
+    Network / transport errors            → 503
+    JSON parse failure                    → 422
+    Other API errors                      → 503
     """
     if settings.use_mock or not settings.gemini_api_key:
         logger.info("Using mock AI service (use_mock=%s, api_key_set=%s)",
                     settings.use_mock, bool(settings.gemini_api_key))
         return get_mock_review(language)
 
-    try:
-        client = genai.Client(api_key=settings.gemini_api_key)
+    client = genai.Client(api_key=settings.gemini_api_key)
+    prompt = _build_prompt(language, code)
+    logger.info(
+        "Sending review request to Gemini [model=%s, language=%s, code_len=%d]",
+        settings.gemini_model, language, len(code),
+    )
 
-        prompt = _build_prompt(language, code)
-        logger.info("Sending review request to Gemini [language=%s, code_length=%d]",
-                    language, len(code))
+    for attempt in range(2):  # one automatic retry on quota errors
+        try:
+            response = client.models.generate_content(
+                model=settings.gemini_model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.2,
+                    max_output_tokens=4096,
+                ),
+            )
 
-        response = client.models.generate_content(
-            model=settings.gemini_model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.2,
-                max_output_tokens=4096,
-            ),
-        )
+            raw_text = response.text
+            logger.debug("Raw Gemini response (first 500 chars): %s", raw_text[:500])
+            return _parse_response(raw_text)
 
-        raw_text = response.text
-        logger.debug("Raw Gemini response: %s", raw_text[:500])
+        except json.JSONDecodeError as exc:
+            logger.error("Failed to parse Gemini JSON response: %s", exc)
+            raise ValueError(
+                "The AI returned an unexpected response format. Please try again."
+            ) from exc
 
-        return _parse_response(raw_text)
+        except Exception as exc:
+            # Gemini SDK raises generic exceptions; inspect the message for quota signals
+            err_str = str(exc).lower()
+            is_quota = any(
+                kw in err_str for kw in ("429", "quota", "rate", "resource_exhausted")
+            )
+            is_transient = any(
+                kw in err_str for kw in ("503", "500", "unavailable", "connection", "timeout")
+            )
 
-    except json.JSONDecodeError as exc:
-        logger.error("Failed to parse Gemini JSON response: %s", exc)
-        raise ValueError(
-            "The AI returned an unexpected response format. Please try again."
-        ) from exc
-    except Exception as exc:
-        logger.error("Gemini API error: %s", exc)
-        raise RuntimeError(f"AI service error: {exc}") from exc
+            if is_quota and attempt == 0:
+                logger.warning(
+                    "Gemini quota/rate limit hit (attempt %d) — retrying in %ds…",
+                    attempt + 1, _RETRY_DELAY_S,
+                )
+                _time.sleep(_RETRY_DELAY_S)
+                continue
+
+            if is_quota:
+                logger.error("Gemini quota exceeded after retry: %s", exc)
+                raise RuntimeError(
+                    "AI service rate limit exceeded. Please wait a moment and try again."
+                ) from exc
+
+            if is_transient:
+                logger.error("Gemini transient error: %s", exc)
+                raise RuntimeError(
+                    "AI service temporarily unavailable. Please try again later."
+                ) from exc
+
+            logger.error("Gemini API error: %s", exc)
+            raise RuntimeError(f"AI service error: {exc}") from exc
+

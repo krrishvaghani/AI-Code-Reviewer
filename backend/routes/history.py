@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api", tags=["history"])
     response_model=List[HistoryItemOut],
     summary="List the authenticated user's review history",
 )
-def get_history(
+async def get_history(
     skip:    int = 0,
     limit:   int = 30,
     user_id: int = Depends(get_current_user_id),
@@ -57,7 +57,7 @@ def get_history(
     status_code=status.HTTP_201_CREATED,
     summary="Save a new review to history",
 )
-def save_history(
+async def save_history(
     body:    SaveHistoryRequest,
     user_id: int = Depends(get_current_user_id),
     db:      Session = Depends(get_db),
@@ -83,7 +83,7 @@ def save_history(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a history item",
 )
-def delete_history(
+async def delete_history(
     item_id: int,
     user_id: int = Depends(get_current_user_id),
     db:      Session = Depends(get_db),

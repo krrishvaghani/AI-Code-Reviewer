@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from fastapi import APIRouter, HTTPException, status
@@ -38,7 +39,9 @@ async def chat_with_code_endpoint(request: ChatRequest) -> ChatResponse:
     )
 
     try:
-        answer = answer_question(
+        # Run the synchronous service in a thread pool to keep the event loop free
+        answer = await asyncio.to_thread(
+            answer_question,
             code=request.code,
             question=request.question,
             language=request.language,
