@@ -1,12 +1,15 @@
 import Editor from '@monaco-editor/react';
+import { useTheme } from '../context/ThemeContext';
 
 /**
  * A single collapsible section card inside the Review Panel.
  * Supports plain text list rendering and code block rendering.
  */
 export default function ReviewSection({ title, icon, items, code, language, colorClass, isOpen, onToggle }) {
+  const { isDark } = useTheme();
   return (
-    <div className={`rounded-lg border ${colorClass.border} bg-gray-900/60 overflow-hidden`}>
+    <div className={`rounded-lg border ${colorClass.border} overflow-hidden transition-colors
+      ${isDark ? 'bg-gray-900/60' : 'bg-white/80'}`}>
       {/* Section header */}
       <button
         onClick={onToggle}
@@ -31,12 +34,14 @@ export default function ReviewSection({ title, icon, items, code, language, colo
 
       {/* Collapsible content */}
       {isOpen && (
-        <div className="px-4 pb-4 border-t border-gray-700/50">
+        <div className={`px-4 pb-4 border-t transition-colors
+          ${isDark ? 'border-gray-700/50' : 'border-gray-200'}`}>
           {/* List items (bugs / optimizations / explanation) */}
           {items && items.length > 0 && (
             <ul className="mt-3 space-y-2">
               {items.map((item, idx) => (
-                <li key={idx} className="flex items-start gap-2.5 text-sm text-gray-300">
+                <li key={idx} className={`flex items-start gap-2.5 text-sm
+                  ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                   <span className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded-full ${colorClass.dot} flex items-center justify-center text-xs font-bold text-white`}>
                     {idx + 1}
                   </span>
@@ -70,7 +75,7 @@ export default function ReviewSection({ title, icon, items, code, language, colo
                 height="280px"
                 language={language}
                 value={code}
-                theme="vs-dark"
+                theme={isDark ? 'ai-dark' : 'ai-light'}
                 options={{
                   readOnly: true,
                   fontSize: 13,
