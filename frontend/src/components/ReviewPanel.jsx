@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import ReviewSection from './ReviewSection';
 import LoadingSpinner from './LoadingSpinner';
 import { useTheme } from '../context/ThemeContext';
@@ -22,12 +22,12 @@ const SECTIONS = [
   {
     key: 'performance_issues',
     title: 'Performance Issues',
-    icon: 'â±',
+    icon: '⏳',
     colorClass: {
-      border: 'border-orange-700/50',
-      text:  'text-orange-400',
-      badge: 'bg-orange-900/60 text-orange-300',
-      dot:   'bg-orange-500',
+      border: 'border-yellow-700/50',
+      text:  'text-yellow-400',
+      badge: 'bg-yellow-900/60 text-yellow-300',
+      dot:   'bg-yellow-500',
     },
   },
   {
@@ -399,7 +399,7 @@ const ALL_KEYS = {
   improved_code: true, explanation: true,
 };
 
-export default function ReviewPanel({ review, isLoading, error, language, loadingMessage, reviewedAt }) {
+export default function ReviewPanel({ review, isLoading, error, language, loadingMessage, reviewedAt, onIssueClick }) {
   const { isDark } = useTheme();
   const [openSections, setOpenSections] = useState({ ...ALL_KEYS });
 
@@ -441,6 +441,7 @@ export default function ReviewPanel({ review, isLoading, error, language, loadin
         language={monacoLanguage}
         isOpen={openSections[section.key]}
         onToggle={() => toggleSection(section.key)}
+        onIssueClick={onIssueClick}
       />
     );
   };

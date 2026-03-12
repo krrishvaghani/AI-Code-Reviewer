@@ -38,11 +38,25 @@ def signup(body: SignupRequest, db: Session = Depends(get_db)):
             detail="An account with this email already exists.",
         )
 
-    user = User(
-        name=body.name.strip(),
-        email=body.email.lower().strip(),
-        hashed_password=hash_password(body.password),
-    )
+    try:
+        user = User(
+            name=body.name.strip(),
+            email=body.email.lower().strip(),
+            hashed_password=hash_password(body.password),
+        )
+    except ValueError as e:
+        logger.error(f"Password hashing error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password is too long or invalid.",
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during signup: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create account due to an internal error.",
+        )
+
     db.add(user)
     db.commit()
     db.refresh(user)

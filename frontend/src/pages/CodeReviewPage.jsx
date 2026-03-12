@@ -43,6 +43,20 @@ export default function CodeReviewPage() {
     setCode, handleLanguageChange, handleReview, handleClear,
   } = useCodeReview();
 
+  const editorRef = useRef(null);
+
+  const handleEditorMount = (editor) => {
+    editorRef.current = editor;
+  };
+
+  const handleLineClick = (lineNumber) => {
+    if (editorRef.current) {
+      editorRef.current.revealLineInCenter(lineNumber);
+      editorRef.current.setPosition({ lineNumber, column: 1 });
+      editorRef.current.focus();
+    }
+  };
+
   // ── File upload ────────────────────────────────────────────────────────────
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -164,13 +178,28 @@ export default function CodeReviewPage() {
           </div>
 
           {/* Monaco editor */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden relative">
             <CodeEditor
               language={language}
               code={code}
               onChange={setCode}
               onCursorChange={setCursor}
+              onEditorMount={handleEditorMount}
             />
+            {/* Loading Overlay overlayed on editor for better UX */}
+            {isLoading && (
+              <div className="absolute inset-0 bg-[#0d1017]/60 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center transition-opacity duration-300">
+                <div className="flex flex-col items-center gap-3 p-6 rounded-2xl bg-[#0f1117]/90 border border-indigo-500/20 shadow-2xl shadow-indigo-900/20">
+                  <svg className="w-8 h-8 text-indigo-500 animate-spin" fill="none" viewBox="0 0 24 24">
+                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  <p className="text-sm font-medium text-indigo-200 animate-pulse">
+                    AI is analyzing your code...
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -201,6 +230,7 @@ export default function CodeReviewPage() {
               language={language}
               loadingMessage={loadingMessage}
               reviewedAt={reviewedAt}
+              onIssueClick={handleLineClick}
             />
           </div>
         </div>

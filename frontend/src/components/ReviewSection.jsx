@@ -51,11 +51,20 @@ function splitLocation(text) {
 // Single item row inside a section
 // ---------------------------------------------------------------------------
 
-function ItemRow({ text, index, sectionKey, isDark }) {
+function ItemRow({ text, index, sectionKey, isDark, onIssueClick }) {
   const severity = detectSeverity(text);
   const cleaned  = severity ? stripTag(text) : text;
   const { location, body } = splitLocation(cleaned);
   const sevStyle = severity ? SEV_STYLES[severity] : null;
+
+  // Extract explicit line number if location specifies it, like "foo:12" or "line 12"
+  let lineNumber = null;
+  if (location) {
+    const match = location.match(/(?:line\s+|:)(\d+)/i);
+    if (match && match[1]) {
+      lineNumber = parseInt(match[1], 10);
+    }
+  }
 
   // Warning sections: issues, security_issues → red left-accent
   // Suggestion sections → green left-accent
@@ -84,7 +93,14 @@ function ItemRow({ text, index, sectionKey, isDark }) {
     : (isDark ? 'bg-gray-800/50 hover:bg-gray-800/80' : 'bg-gray-50 hover:bg-gray-100');
 
   return (
-    <li className={`rounded-r-lg pl-3 pr-2 py-2.5 transition-colors ${itemBg} ${leftAccent}`}>
+    <li
+      className={`rounded-r-lg pl-3 pr-2 py-2.5 transition-colors ${itemBg} ${leftAccent} ${lineNumber ? 'cursor-pointer hover:shadow-sm' : ''}`}
+      onClick={() => {
+        if (lineNumber && onIssueClick) {
+          onIssueClick(lineNumber);
+        }
+      }}
+    >
       <div className="flex items-start gap-2">
         {/* Index badge */}
         <span className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white mt-0.5
@@ -218,7 +234,7 @@ function parseInlineCode(text, isDark) {
  *  isOpen, onToggle         — collapse state
  */
 export default function ReviewSection({
-  title, icon, items, code, language, colorClass, sectionKey, isOpen, onToggle,
+  title, icon, items, code, language, colorClass, sectionKey, isOpen, onToggle, onIssueClick,
 }) {
   const { isDark } = useTheme();
 
@@ -289,6 +305,7 @@ export default function ReviewSection({
                   index={idx}
                   sectionKey={sectionKey}
                   isDark={isDark}
+                  onIssueClick={onIssueClick}
                 />
               ))}
             </ul>
