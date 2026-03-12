@@ -92,8 +92,28 @@ function SummaryBar({ review, isDark }) {
     { label: 'Linter',      count: staticCount,                        color: 'text-violet-400', bg: 'bg-violet-500/10 border-violet-500/20'},
   ];
 
+  // Code health grade based on total problem count
+  const totalProblems = (ai.issues?.length ?? 0)
+    + (ai.security_issues?.length ?? 0)
+    + (ai.performance_issues?.length ?? 0)
+    + staticCount;
+
+  const grade = totalProblems === 0 ? 'A'
+    : totalProblems <= 2 ? 'B'
+    : totalProblems <= 5 ? 'C'
+    : totalProblems <= 10 ? 'D'
+    : 'F';
+
+  const gradeStyle = {
+    A: 'bg-green-500/20 text-green-400 border-green-500/40',
+    B: 'bg-teal-500/20 text-teal-400 border-teal-500/40',
+    C: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40',
+    D: 'bg-orange-500/20 text-orange-400 border-orange-500/40',
+    F: 'bg-red-500/20 text-red-400 border-red-500/40',
+  }[grade];
+
   return (
-    <div className={`flex flex-wrap gap-1.5 px-4 py-2.5 border-b text-xs transition-colors
+    <div className={`flex flex-wrap items-center gap-1.5 px-4 py-2.5 border-b text-xs transition-colors
       ${isDark ? 'bg-gray-900/80 border-gray-700/60' : 'bg-gray-50 border-gray-200'}`}
     >
       {pills.map(({ label, count, color, bg }) => (
@@ -104,6 +124,12 @@ function SummaryBar({ review, isDark }) {
           {count} {label}
         </span>
       ))}
+      {/* Health grade badge */}
+      <span className="ml-auto" />
+      <span title="Code health score" className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border font-bold ${gradeStyle}`}>
+        <span className="text-[10px] font-medium opacity-70">Score</span>
+        {grade}
+      </span>
     </div>
   );
 }
@@ -490,6 +516,17 @@ export default function ReviewPanel({ review, isLoading, error, language, loadin
 
             {/* 4. Security */}
             {renderSection(SECTIONS[2])}
+
+            {/* ── Improvements separator ─────────────────────────────────── */}
+            <div className={`flex items-center gap-2 pt-1 pb-0.5
+              ${isDark ? 'text-gray-600' : 'text-gray-400'}`}
+            >
+              <div className={`flex-1 h-px ${isDark ? 'bg-gray-700/50' : 'bg-gray-200'}`} />
+              <span className="text-[10px] font-semibold uppercase tracking-widest px-1">
+                Improvements
+              </span>
+              <div className={`flex-1 h-px ${isDark ? 'bg-gray-700/50' : 'bg-gray-200'}`} />
+            </div>
 
             {/* 5. Suggestions (green) */}
             {renderSection(SECTIONS[3])}

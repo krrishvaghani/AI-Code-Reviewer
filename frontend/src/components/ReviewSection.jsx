@@ -63,7 +63,11 @@ function ItemRow({ text, index, sectionKey, isDark }) {
   const isSuggestion = sectionKey === 'suggestions';
   const isPerf       = sectionKey === 'performance_issues';
 
-  const leftAccent = isWarning
+  const isHighSeverity = severity === 'high';
+
+  const leftAccent = isHighSeverity
+    ? 'border-l-[3px] border-red-500'
+    : isWarning
     ? 'border-l-2 border-red-500/60'
     : isSuggestion
     ? 'border-l-2 border-green-500/60'
@@ -71,12 +75,16 @@ function ItemRow({ text, index, sectionKey, isDark }) {
     ? 'border-l-2 border-orange-500/60'
     : 'border-l-2 border-gray-600/40';
 
+  const itemBg = isHighSeverity
+    ? (isDark ? 'bg-red-950/30 hover:bg-red-950/50' : 'bg-red-50 hover:bg-red-100')
+    : isWarning
+    ? (isDark ? 'bg-gray-800/50 hover:bg-gray-800/80' : 'bg-red-50/30 hover:bg-red-50')
+    : isSuggestion
+    ? (isDark ? 'bg-gray-800/50 hover:bg-gray-800/80' : 'bg-green-50/30 hover:bg-green-50')
+    : (isDark ? 'bg-gray-800/50 hover:bg-gray-800/80' : 'bg-gray-50 hover:bg-gray-100');
+
   return (
-    <li className={`rounded-r-lg pl-3 pr-2 py-2.5 transition-colors
-      ${isDark
-        ? `bg-gray-800/50 hover:bg-gray-800/80 ${leftAccent}`
-        : `bg-gray-50 hover:bg-gray-100 ${leftAccent}`}`}
-    >
+    <li className={`rounded-r-lg pl-3 pr-2 py-2.5 transition-colors ${itemBg} ${leftAccent}`}>
       <div className="flex items-start gap-2">
         {/* Index badge */}
         <span className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white mt-0.5
@@ -103,7 +111,7 @@ function ItemRow({ text, index, sectionKey, isDark }) {
           )}
           {/* Body text */}
           <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-            {body}
+            {parseInlineCode(body, isDark)}
           </p>
         </div>
       </div>
@@ -176,6 +184,25 @@ function ExplanationBody({ text, isDark }) {
 }
 
 // ---------------------------------------------------------------------------
+// Inline code parser — renders `backtick` spans as styled <code> elements
+// ---------------------------------------------------------------------------
+
+function parseInlineCode(text, isDark) {
+  const parts = text.split(/(`[^`\n]+`)/g);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) =>
+    part.startsWith('`') && part.endsWith('`') ? (
+      <code key={i} className={`text-xs font-mono px-1.5 py-0.5 rounded mx-0.5 align-middle
+        ${isDark ? 'bg-gray-700/80 text-cyan-300' : 'bg-gray-200 text-indigo-600'}`}>
+        {part.slice(1, -1)}
+      </code>
+    ) : (
+      <span key={i}>{part}</span>
+    )
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main ReviewSection component
 // ---------------------------------------------------------------------------
 
@@ -195,8 +222,15 @@ export default function ReviewSection({
 }) {
   const { isDark } = useTheme();
 
-  // Section-level highlight ring on hover
-  const hoverBg = isDark ? 'hover:bg-gray-800/30' : 'hover:bg-gray-50';
+  // Section-type tinted hover background so each card feels distinct
+  const hoverBg = {
+    issues:             isDark ? 'hover:bg-red-900/20'    : 'hover:bg-red-50',
+    performance_issues: isDark ? 'hover:bg-orange-900/20' : 'hover:bg-orange-50',
+    security_issues:    isDark ? 'hover:bg-rose-900/20'   : 'hover:bg-rose-50',
+    suggestions:        isDark ? 'hover:bg-green-900/20'  : 'hover:bg-green-50',
+    improved_code:      isDark ? 'hover:bg-indigo-900/20' : 'hover:bg-indigo-50',
+    explanation:        isDark ? 'hover:bg-blue-900/20'   : 'hover:bg-blue-50',
+  }[sectionKey] ?? (isDark ? 'hover:bg-gray-800/30' : 'hover:bg-gray-50');
 
   // Explanation is a plain string, not an array
   const isExplanation = sectionKey === 'explanation';
