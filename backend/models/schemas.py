@@ -216,6 +216,34 @@ class SaveHistoryRequest(BaseModel):
     result: Any
     review_type: str = "code"
     title: str = "Code Review"
+
+
+# ---------------------------------------------------------------------------
+# Dashboard Analytics
+# ---------------------------------------------------------------------------
+
+class LanguageStat(BaseModel):
+    language: str
+    count: int
+    percentage: float   # 0–100
+
+
+class DailyActivity(BaseModel):
+    date: str    # ISO date "YYYY-MM-DD"
+    count: int
+
+
+class StatsResponse(BaseModel):
+    """Aggregated analytics computed from the user's review history."""
+    total_reviews: int
+    total_bugs: int                  # sum of ai_review.issues across all reviews
+    total_security_issues: int       # sum of ai_review.security_issues
+    total_performance_issues: int    # sum of ai_review.performance_issues
+    avg_quality_score: float         # 0–100 (100 = no issues found)
+    languages: List[LanguageStat]    # language breakdown
+    activity: List[DailyActivity]    # reviews per day — last 14 days
+    streak_days: int                 # consecutive days with ≥1 review (up to today)
+
     top_issues: List[str]
     top_suggestions: List[str]
     file_reviews: List[FileReview]

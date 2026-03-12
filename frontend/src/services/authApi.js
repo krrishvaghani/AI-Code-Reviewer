@@ -61,3 +61,14 @@ export async function deleteHistory(token, itemId) {
     headers: authHeaders(token),
   });
 }
+
+export async function fetchStats(token) {
+  const { data } = await authApi.get('/api/stats', {
+    headers: authHeaders(token),
+  });
+  return data;
+  // StatsResponse shape:
+  // { total_reviews, total_bugs, total_security_issues, total_performance_issues,
+  //   avg_quality_score, languages: [{language, count, percentage}],
+  //   activity: [{date, count}],  streak_days }
+}
