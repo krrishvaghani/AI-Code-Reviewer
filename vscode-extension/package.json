@@ -45,6 +45,26 @@
         "command": "aiCodeReviewer.setBackendUrl",
         "title": "AI Review: Set Backend URL",
         "category": "AI Code Reviewer"
+      },
+      {
+        "command": "aiCodeReviewer.reviewCurrentFile",
+        "title": "AI Review Current File",
+        "category": "AI Code Reviewer"
+      },
+      {
+        "command": "aiCodeReviewer.clearDiagnostics",
+        "title": "AI Review: Clear Warnings",
+        "category": "AI Code Reviewer"
+      },
+      {
+        "command": "aiCodeReviewer.showExplanation",
+        "title": "AI Review: Show Explanation Panel",
+        "category": "AI Code Reviewer"
+      },
+      {
+        "command": "aiCodeReviewer.applyImprovedCode",
+        "title": "AI Review: Apply Improved Code",
+        "category": "AI Code Reviewer"
       }
     ],
     "menus": {
@@ -55,7 +75,7 @@
           "group": "aiCodeReviewer@1"
         },
         {
-          "command": "aiCodeReviewer.reviewFile",
+          "command": "aiCodeReviewer.reviewCurrentFile",
           "when": "editorIsOpen",
           "group": "aiCodeReviewer@2"
         },
@@ -63,6 +83,21 @@
           "command": "aiCodeReviewer.chatWithCode",
           "when": "editorHasSelection",
           "group": "aiCodeReviewer@3"
+        },
+        {
+          "command": "aiCodeReviewer.clearDiagnostics",
+          "when": "editorIsOpen",
+          "group": "aiCodeReviewer@4"
+        }
+      ]
+    },
+    "views": {
+      "explorer": [
+        {
+          "type": "webview",
+          "id": "aiCodeReviewer.explanationView",
+          "name": "AI Code Review",
+          "contextualTitle": "AI Code Reviewer"
         }
       ]
     },
@@ -78,6 +113,12 @@
         "key": "ctrl+shift+c",
         "mac": "cmd+shift+c",
         "when": "editorTextFocus && editorHasSelection"
+      },
+      {
+        "command": "aiCodeReviewer.reviewCurrentFile",
+        "key": "ctrl+alt+r",
+        "mac": "cmd+alt+r",
+        "when": "editorTextFocus"
       }
     ],
     "configuration": {

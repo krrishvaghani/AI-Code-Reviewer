@@ -2,8 +2,22 @@
 
 const vscode  = require('vscode');
 const api     = require('./apiClient');
-const { showReviewPanel } = require('./reviewPanel');
-const { showChatPanel }   = require('./chatPanel');
+const { showReviewPanel }                  = require('./reviewPanel');
+const { showChatPanel }                    = require('./chatPanel');
+const DiagnosticsManager                   = require('./diagnosticsManager');
+const { ReviewStore, AICodeActionProvider } = require('./codeActionProvider');
+const ExplanationPanelProvider             = require('./explanationPanel');
+
+// ---------------------------------------------------------------------------
+// Module-level singletons (initialised in activate)
+// ---------------------------------------------------------------------------
+
+/** @type {DiagnosticsManager} */
+let diagnosticsManager;
+/** @type {ReviewStore} */
+let reviewStore;
+/** @type {ExplanationPanelProvider} */
+let explanationProvider;
 
 // ---------------------------------------------------------------------------
 // Activation
@@ -11,18 +25,62 @@ const { showChatPanel }   = require('./chatPanel');
 
 /** @param {vscode.ExtensionContext} context */
 function activate(context) {
+  diagnosticsManager  = new DiagnosticsManager();
+  reviewStore         = new ReviewStore();
+  explanationProvider = new ExplanationPanelProvider();
+
+  context.subscriptions.push({ dispose: () => diagnosticsManager.dispose() });
+
+  // ── Sidebar explanation panel ─────────────────────────────────────────────
   context.subscriptions.push(
-    vscode.commands.registerCommand('aiCodeReviewer.reviewSelection', () => handleReview(context, false)),
-    vscode.commands.registerCommand('aiCodeReviewer.reviewFile',      () => handleReview(context, true)),
-    vscode.commands.registerCommand('aiCodeReviewer.chatWithCode',    () => handleChat(context)),
-    vscode.commands.registerCommand('aiCodeReviewer.setBackendUrl',   handleSetBackendUrl),
+    vscode.window.registerWebviewViewProvider(
+      ExplanationPanelProvider.VIEW_ID,
+      explanationProvider,
+      { webviewOptions: { retainContextWhenHidden: true } },
+    ),
+  );
+
+  // ── Code action provider (quick-fix lightbulb) ────────────────────────────
+  context.subscriptions.push(
+    vscode.languages.registerCodeActionsProvider(
+      ['python', 'javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'java', 'cpp', 'c'],
+      new AICodeActionProvider(reviewStore),
+      {
+        providedCodeActionKinds: [
+          vscode.CodeActionKind.QuickFix,
+          vscode.CodeActionKind.Empty,
+        ],
+      },
+    ),
+  );
+
+  // ── Commands ──────────────────────────────────────────────────────────────
+  context.subscriptions.push(
+    // Existing
+    vscode.commands.registerCommand('aiCodeReviewer.reviewSelection',   () => handleReview(context, false)),
+    vscode.commands.registerCommand('aiCodeReviewer.reviewFile',        () => handleReview(context, true)),
+    vscode.commands.registerCommand('aiCodeReviewer.chatWithCode',      () => handleChat(context)),
+    vscode.commands.registerCommand('aiCodeReviewer.setBackendUrl',     handleSetBackendUrl),
+    // New
+    vscode.commands.registerCommand('aiCodeReviewer.reviewCurrentFile', () => handleReview(context, true)),
+    vscode.commands.registerCommand('aiCodeReviewer.clearDiagnostics',  handleClearDiagnostics),
+    vscode.commands.registerCommand('aiCodeReviewer.showExplanation',   handleShowExplanation),
+    vscode.commands.registerCommand('aiCodeReviewer.applyImprovedCode', handleApplyImprovedCode),
+  );
+
+  // Clear stale data when a file is closed
+  context.subscriptions.push(
+    vscode.workspace.onDidCloseTextDocument((doc) => {
+      diagnosticsManager.clear(doc.uri);
+      reviewStore.delete(doc.uri);
+    }),
   );
 }
 
 function deactivate() {}
 
 // ---------------------------------------------------------------------------
-// Command: Review Selection / Review File
+// Command: Review Selection / Review File / Review Current File
 // ---------------------------------------------------------------------------
 
 async function handleReview(context, reviewFullFile) {
@@ -32,9 +90,9 @@ async function handleReview(context, reviewFullFile) {
     return;
   }
 
-  const selection = editor.selection;
+  const selection    = editor.selection;
   const useSelection = !reviewFullFile && !selection.isEmpty;
-  const code = useSelection
+  const code         = useSelection
     ? editor.document.getText(selection)
     : editor.document.getText();
 
@@ -42,6 +100,11 @@ async function handleReview(context, reviewFullFile) {
     vscode.window.showWarningMessage('AI Code Reviewer: The file or selection is empty.');
     return;
   }
+
+  const lastLine      = editor.document.lineCount - 1;
+  const reviewedRange = useSelection
+    ? new vscode.Range(selection.start, selection.end)
+    : new vscode.Range(0, 0, lastLine, editor.document.lineAt(lastLine).text.length);
 
   const languageId = editor.document.languageId;
   const fileName   = shortName(editor.document.fileName);
@@ -51,24 +114,59 @@ async function handleReview(context, reviewFullFile) {
 
   await vscode.window.withProgress(
     {
-      location: vscode.ProgressLocation.Notification,
-      title:    `AI Code Reviewer: analysing ${label}…`,
+      location:    vscode.ProgressLocation.Notification,
+      title:       `AI Code Reviewer: analysing ${label}…`,
       cancellable: false,
     },
     async () => {
       try {
         const result = await api.reviewCode(code, languageId);
-        showReviewPanel(context, result, label);
+
+        // 1 ── Review panel (full side-by-side view)
+        showReviewPanel(context, result, label, (improvedCode) => {
+          handleApplyImprovedCode(editor.document.uri, reviewedRange, improvedCode);
+        });
+
+        // 2 ── Inline diagnostics (squiggles + after-text hint)
+        diagnosticsManager.update(editor.document, reviewedRange, result);
+
+        // 3 ── Store for code-action lightbulb
+        reviewStore.set(editor.document.uri, result, reviewedRange);
+
+        // 4 ── Explanation sidebar
+        explanationProvider.update(result, label);
 
         if (result._exact === false) {
           vscode.window.showInformationMessage(
-            `Note: ${languageId} is not directly supported — reviewed as JavaScript.`
+            `Note: ${languageId} is not directly supported — reviewed as JavaScript.`,
           );
+        }
+
+        // 5 ── Actionable notification when issues were found
+        const totalIssues =
+          (result.issues?.length ?? 0) +
+          (result.security_issues?.length ?? 0) +
+          (result.performance_issues?.length ?? 0);
+
+        if (totalIssues > 0) {
+          vscode.window
+            .showWarningMessage(
+              `AI Code Reviewer: ${totalIssues} issue${totalIssues !== 1 ? 's' : ''} found in ${fileName}.`,
+              'Apply Improved Code',
+              'Show Explanation',
+            )
+            .then((choice) => {
+              if (choice === 'Apply Improved Code') {
+                handleApplyImprovedCode(editor.document.uri, reviewedRange, result.improved_code);
+              } else if (choice === 'Show Explanation') {
+                handleShowExplanation();
+              }
+            });
         }
       } catch (err) {
         vscode.window.showErrorMessage(`AI Code Reviewer: ${err.message}`);
       }
-    }
+    },
   );
 }
 
@@ -134,6 +232,61 @@ async function handleSetBackendUrl() {
 
   await config.update('backendUrl', newUrl.trim(), vscode.ConfigurationTarget.Global);
   vscode.window.showInformationMessage(`AI Code Reviewer: backend URL saved → ${newUrl.trim()}`);
+}
+
+// ---------------------------------------------------------------------------
+// Command: Clear Diagnostics
+// ---------------------------------------------------------------------------
+
+function handleClearDiagnostics() {
+  const editor = vscode.window.activeTextEditor;
+  if (editor) {
+    diagnosticsManager.clear(editor.document.uri);
+    reviewStore.delete(editor.document.uri);
+  } else {
+    diagnosticsManager.clear();
+    reviewStore.clear();
+  }
+  vscode.window.showInformationMessage('AI Code Reviewer: warnings cleared.');
+}
+
+// ---------------------------------------------------------------------------
+// Command: Show Explanation Panel
+// ---------------------------------------------------------------------------
+
+function handleShowExplanation() {
+  // Focus the registered WebviewView by its built-in focus command
+  vscode.commands.executeCommand('aiCodeReviewer.explanationView.focus');
+}
+
+// ---------------------------------------------------------------------------
+// Command: Apply Improved Code
+// ---------------------------------------------------------------------------
+
+/**
+ * Replace the reviewed range in a document with the AI-improved version.
+ * @param {vscode.Uri}    uri
+ * @param {vscode.Range}  range
+ * @param {string}        improvedCode
+ */
+async function handleApplyImprovedCode(uri, range, improvedCode) {
+  if (!uri || !range || !improvedCode?.trim()) {
+    vscode.window.showWarningMessage('AI Code Reviewer: No improved code available to apply.');
+    return;
+  }
+
+  const edit = new vscode.WorkspaceEdit();
+  edit.replace(uri, range, improvedCode);
+  const ok = await vscode.workspace.applyEdit(edit);
+
+  if (ok) {
+    vscode.window.showInformationMessage('AI Code Reviewer: Improved code applied ✓');
+    // Stale diagnostics no longer apply — clear them
+    diagnosticsManager.clear(uri);
+    reviewStore.delete(uri);
+  } else {
+    vscode.window.showErrorMessage('AI Code Reviewer: Failed to apply the improved code.');
+  }
 }
 
 // ---------------------------------------------------------------------------

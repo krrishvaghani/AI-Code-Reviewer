@@ -150,8 +150,25 @@ function getConfig() {
 async function reviewCode(code, vscodeLanguageId) {
   const { baseUrl, timeoutMs } = getConfig();
   const { language, exact } = mapLanguage(vscodeLanguageId);
-  const result = await postJson(`${baseUrl}/api/review`, { code, language }, timeoutMs);
-  return { ...result, _language: language, _exact: exact };
+  const raw = await postJson(`${baseUrl}/api/review`, { code, language }, timeoutMs);
+
+  // Backend returns FullReviewResponse: { static_analysis: [...], ai_review: {...} }
+  // Flatten ai_review to the top level so the rest of the extension
+  // can use result.issues, result.suggestions, etc. directly.
+  const ai = raw.ai_review ?? raw; // graceful fallback if already flat
+
+  return {
+    static_analysis:    raw.static_analysis    ?? [],
+    issues:             ai.issues              ?? [],
+    security_issues:    ai.security_issues     ?? [],
+    performance_issues: ai.performance_issues  ?? [],
+    suggestions:        ai.suggestions         ?? [],
+    improved_code:      ai.improved_code       ?? '',
+    explanation:        ai.explanation         ?? '',
+    complexity:         ai.complexity          ?? null,
+    _language:          language,
+    _exact:             exact,
+  };
 }
 
 /**

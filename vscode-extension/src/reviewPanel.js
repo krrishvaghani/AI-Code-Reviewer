@@ -16,15 +16,20 @@ let _panel;
  * @param {vscode.ExtensionContext} context
  * @param {{
  *   issues: string[],
+ *   security_issues: string[],
+ *   performance_issues: string[],
  *   suggestions: string[],
  *   improved_code: string,
  *   explanation: string,
  *   complexity?: object,
+ *   static_analysis?: object[],
  *   _language: string
  * }} result
  * @param {string} title   Short title shown in panel header (e.g. "review.py")
+ * @param {((improvedCode: string) => void) | undefined} onApplyCode
+ *   Optional callback invoked when the user clicks "Apply Improved Code" in the panel.
  */
-function showReviewPanel(context, result, title) {
+function showReviewPanel(context, result, title, onApplyCode) {
   if (_panel) {
     _panel.reveal(vscode.ViewColumn.Two);
   } else {
@@ -42,6 +47,13 @@ function showReviewPanel(context, result, title) {
     _panel.onDidDispose(() => { _panel = undefined; }, null, context.subscriptions);
   }
 
+  // Handle messages sent from the webview (e.g. "Apply Improved Code" button)
+  _panel.webview.onDidReceiveMessage((msg) => {
+    if (msg.type === 'applyCode' && onApplyCode && result.improved_code) {
+      onApplyCode(result.improved_code);
+    }
+  }, null, context.subscriptions);
+
   const nonce = crypto.randomBytes(16).toString('hex');
   _panel.webview.html = buildHtml(_panel.webview, nonce, result, title);
   _panel.title = `AI Review — ${title}`;
@@ -58,16 +70,32 @@ function showReviewPanel(context, result, title) {
  * @param {string} title
  */
 function buildHtml(webview, nonce, result, title) {
-  const { issues = [], suggestions = [], improved_code = '', explanation = '', complexity, _language = 'python' } = result;
+  const {
+    issues             = [],
+    security_issues    = [],
+    performance_issues = [],
+    suggestions        = [],
+    improved_code      = '',
+    explanation        = '',
+    complexity,
+    static_analysis    = [],
+    _language          = 'python',
+  } = result;
 
-  const issuesHtml        = renderList(issues, 'issue');
-  const suggestionsHtml   = renderList(suggestions, 'suggestion');
-  const complexityHtml    = complexity ? renderComplexity(complexity) : '';
-  const improvedCodeHtml  = renderCode(improved_code, _language);
-  const explanationHtml   = renderExplanation(explanation);
+  const issuesHtml          = renderList(issues,             'issue');
+  const securityHtml        = renderList(security_issues,    'security');
+  const performanceHtml     = renderList(performance_issues, 'performance');
+  const suggestionsHtml     = renderList(suggestions,        'suggestion');
+  const complexityHtml      = complexity ? renderComplexity(complexity) : '';
+  const improvedCodeHtml    = renderCode(improved_code, _language);
+  const explanationHtml     = renderExplanation(explanation);
+  const staticAnalysisHtml  = renderStaticAnalysis(static_analysis);
 
   const issueCount      = issues.length;
+  const securityCount   = security_issues.length;
+  const perfCount       = performance_issues.length;
   const suggestionCount = suggestions.length;
+  const totalIssues     = issueCount + securityCount + perfCount;
 
   const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
@@ -153,6 +181,21 @@ function buildHtml(webview, nonce, result, title) {
     .badge-yellow { background: rgba(251,191,36,.15);  color: var(--yellow); border-color: rgba(251,191,36,.3); }
     .badge-green  { background: rgba(52,211,153,.15);  color: var(--green);  border-color: rgba(52,211,153,.3); }
     .badge-purple { background: rgba(167,139,250,.15); color: var(--purple); border-color: rgba(167,139,250,.3); }
+    .badge-orange { background: rgba(251,146,60,.15);  color: var(--orange); border-color: rgba(251,146,60,.3); }
+
+    /* ---- apply button ---- */
+    .apply-btn {
+      background: rgba(79,70,229,.2);
+      border: 1px solid rgba(79,70,229,.4);
+      border-radius: 5px;
+      color: #a5b4fc;
+      font-size: 11px;
+      cursor: pointer;
+      padding: 3px 9px;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+    .apply-btn:hover { background: rgba(79,70,229,.35); color: #e0e7ff; }
 
     /* ---- content ---- */
     .content { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
@@ -327,9 +370,12 @@ function buildHtml(webview, nonce, result, title) {
 
     /* ---- section colours ---- */
     .issues-card     { border-left: 3px solid rgba(248,113,113,.5); }
+    .security-card   { border-left: 3px solid rgba(251,146,60,.5); }
+    .perf-card       { border-left: 3px solid rgba(251,191,36,.5); }
     .suggest-card    { border-left: 3px solid rgba(251,191,36,.5); }
     .complexity-card { border-left: 3px solid rgba(167,139,250,.5); }
     .code-card       { border-left: 3px solid rgba(52,211,153,.5); }
+    .static-card     { border-left: 3px solid rgba(167,139,250,.5); }
     .explain-card    { border-left: 3px solid rgba(96,165,250,.5); }
   </style>
 </head>
@@ -340,8 +386,8 @@ function buildHtml(webview, nonce, result, title) {
     <div class="header-top">
       <span style="font-size:18px">📋</span>
       <span class="header-title">${escapeHtml(title)}</span>
-      ${issueCount > 0
-        ? `<span class="badge badge-red">🐛 ${issueCount} issue${issueCount !== 1 ? 's' : ''}</span>`
+      ${totalIssues > 0
+        ? `<span class="badge badge-red">🐛 ${totalIssues} issue${totalIssues !== 1 ? 's' : ''}</span>`
         : `<span class="badge badge-green">✓ No issues</span>`}
       ${suggestionCount > 0
         ? `<span class="badge badge-yellow">⚡ ${suggestionCount} suggestion${suggestionCount !== 1 ? 's' : ''}</span>`
@@ -369,6 +415,42 @@ function buildHtml(webview, nonce, result, title) {
         ${issuesHtml}
       </div>
     </div>
+
+    <!-- Security Issues -->
+    ${securityCount > 0 ? `
+    <div class="card security-card" id="card-security">
+      <div class="card-header" onclick="toggle('security')">
+        <div class="card-title">
+          <span>🔒</span>
+          <span style="color:var(--orange)">Security Issues</span>
+          <span class="badge badge-orange">${securityCount}</span>
+        </div>
+        <svg class="card-chevron open" id="chev-security" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </div>
+      <div class="card-body" id="body-security">
+        ${securityHtml}
+      </div>
+    </div>` : ''}
+
+    <!-- Performance Issues -->
+    ${perfCount > 0 ? `
+    <div class="card perf-card" id="card-perf">
+      <div class="card-header" onclick="toggle('perf')">
+        <div class="card-title">
+          <span>⚡</span>
+          <span style="color:var(--yellow)">Performance Issues</span>
+          <span class="badge badge-yellow">${perfCount}</span>
+        </div>
+        <svg class="card-chevron open" id="chev-perf" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </div>
+      <div class="card-body" id="body-perf">
+        ${performanceHtml}
+      </div>
+    </div>` : ''}
 
     <!-- Suggestions -->
     <div class="card suggest-card" id="card-suggestions">
@@ -415,14 +497,37 @@ function buildHtml(webview, nonce, result, title) {
           <span>✨</span>
           <span style="color:var(--green)">Improved Code</span>
         </div>
-        <svg class="card-chevron open" id="chev-code" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-        </svg>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="apply-btn" onclick="applyCode(event)" title="Replace the reviewed code with the AI-improved version">
+            $(sparkle) Apply
+          </button>
+          <svg class="card-chevron open" id="chev-code" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </div>
       </div>
       <div class="card-body" style="padding:0" id="body-code">
         ${improvedCodeHtml}
       </div>
     </div>
+
+    <!-- Static Analysis -->
+    ${static_analysis.length > 0 ? `
+    <div class="card static-card" id="card-static">
+      <div class="card-header" onclick="toggle('static')">
+        <div class="card-title">
+          <span>🔬</span>
+          <span style="color:var(--purple)">Static Analysis</span>
+          <span class="badge badge-purple">${static_analysis.length}</span>
+        </div>
+        <svg class="card-chevron open" id="chev-static" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </div>
+      <div class="card-body" id="body-static">
+        ${staticAnalysisHtml}
+      </div>
+    </div>` : ''}
 
     <!-- Explanation -->
     <div class="card explain-card" id="card-explanation">
@@ -444,12 +549,15 @@ function buildHtml(webview, nonce, result, title) {
 
   <script nonce="${nonce}">
     // ----- Collapse / expand -----
-    const openState = { issues: true, suggestions: true, complexity: true, code: true, explanation: true };
+    const openState = {
+      issues: true, security: true, perf: true,
+      suggestions: true, complexity: true, code: true, static: true, explanation: true,
+    };
 
     function toggle(id) {
       openState[id] = !openState[id];
-      const body  = document.getElementById('body-' + id);
-      const chev  = document.getElementById('chev-' + id);
+      const body = document.getElementById('body-' + id);
+      const chev = document.getElementById('chev-' + id);
       if (body) body.style.display = openState[id] ? '' : 'none';
       if (chev) chev.classList.toggle('open', openState[id]);
     }
@@ -466,6 +574,13 @@ function buildHtml(webview, nonce, result, title) {
           setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
         }
       });
+    }
+
+    // ----- Apply improved code -----
+    const vscode = acquireVsCodeApi();
+    function applyCode(event) {
+      event.stopPropagation(); // don't toggle the card
+      vscode.postMessage({ type: 'applyCode' });
     }
   </script>
 </body>
@@ -536,6 +651,21 @@ function renderExplanation(text) {
     return '<p class="empty">No explanation provided.</p>';
   }
   return `<p class="explanation-text">${escapeHtml(text)}</p>`;
+}
+
+function renderStaticAnalysis(findings) {
+  if (!findings || findings.length === 0) {
+    return '<p class="empty">No static analysis findings.</p>';
+  }
+  const sevClass = (s) => s === 'error' ? 'item-num-red' : 'item-num-yellow';
+  return `<div class="item-list">${findings.map((f, i) => `
+    <div class="item">
+      <span class="item-num ${sevClass(f.severity)}" title="${escapeHtml(f.severity || 'info')} — line ${f.line || '?'}">
+        ${f.line || i + 1}
+      </span>
+      <span>${escapeHtml(f.message)}</span>
+    </div>`).join('')}
+  </div>`;
 }
 
 function escapeHtml(str) {
