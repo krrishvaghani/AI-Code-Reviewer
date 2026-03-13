@@ -19,10 +19,15 @@ html {
 
 body {
   font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
-  background-color: #0a0c14;
-  color: #e2e8f0;
+  background-color: #0a0a0a;
+  color: #ededed;
   min-height: 100vh;
   overflow-x: hidden;
+}
+
+.dark body {
+  background-color: #0a0a0a;
+  color: #ededed;
 }
 
 /* ── Custom scrollbars ───────────────────────────────────────────────── */
@@ -31,7 +36,6 @@ body {
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
 
-/* Monaco editor scrollbar */
 .monaco-editor .scrollbar .slider {
   background: rgba(100, 116, 139, 0.3) !important;
   border-radius: 4px !important;
@@ -43,6 +47,17 @@ body {
   outline-offset: 2px;
 }
 button:focus-visible { border-radius: 6px; }
+
+/* ── Monaco Annotations ──────────────────────────────────────────────── */
+.red-squiggle {
+  background: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%206%203'%20enable-background%3D'new%200%200%206%203'%20height%3D'3'%20width%3D'6'%3E%3Cg%20fill%3D'%23ef4444'%3E%3Cpolygon%20points%3D'5.5%2C0%202.5%2C3%201.1%2C3%204.1%2C0'%2F%3E%3Cpolygon%20points%3D'4%2C0%206%2C2%206%2C0'%2F%3E%3Cpolygon%20points%3D'0%2C0%201%2C0%200%2C1'%2F%3E%3Cpolygon%20points%3D'3%2C0%200%2C3%201.4%2C3%204.4%2C0'%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E") repeat-x bottom left;
+}
+.yellow-squiggle {
+  background: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%206%203'%20enable-background%3D'new%200%200%206%203'%20height%3D'3'%20width%3D'6'%3E%3Cg%20fill%3D'%23eab308'%3E%3Cpolygon%20points%3D'5.5%2C0%202.5%2C3%201.1%2C3%204.1%2C0'%2F%3E%3Cpolygon%20points%3D'4%2C0%206%2C2%206%2C0'%2F%3E%3Cpolygon%20points%3D'0%2C0%201%2C0%200%2C1'%2F%3E%3Cpolygon%20points%3D'3%2C0%200%2C3%201.4%2C3%204.4%2C0'%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E") repeat-x bottom left;
+}
+.green-squiggle {
+  background: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%206%203'%20enable-background%3D'new%200%200%206%203'%20height%3D'3'%20width%3D'6'%3E%3Cg%20fill%3D'%2322c55e'%3E%3Cpolygon%20points%3D'5.5%2C0%202.5%2C3%201.1%2C3%204.1%2C0'%2F%3E%3Cpolygon%20points%3D'4%2C0%206%2C2%206%2C0'%2F%3E%3Cpolygon%20points%3D'0%2C0%201%2C0%200%2C1'%2F%3E%3Cpolygon%20points%3D'3%2C0%200%2C3%201.4%2C3%204.4%2C0'%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E") repeat-x bottom left;
+}
 
 /* ── Animations ──────────────────────────────────────────────────────── */
 @keyframes fade-in-up {
@@ -61,10 +76,6 @@ button:focus-visible { border-radius: 6px; }
   0%   { background-position: -200% 0; }
   100% { background-position:  200% 0; }
 }
-@keyframes thinking-pulse {
-  0%, 100% { opacity: 0.4; transform: scale(0.85); }
-  50%       { opacity: 1;   transform: scale(1); }
-}
 
 .animate-fade-in-up   { animation: fade-in-up 0.22s ease-out both; }
 .animate-fade-in      { animation: fade-in 0.18s ease-out both; }
@@ -72,12 +83,7 @@ button:focus-visible { border-radius: 6px; }
 
 /* Skeleton shimmer */
 .skeleton {
-  background: linear-gradient(
-    90deg,
-    rgba(255,255,255,0.04) 25%,
-    rgba(255,255,255,0.09) 50%,
-    rgba(255,255,255,0.04) 75%
-  );
+  background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.09) 50%, rgba(255,255,255,0.04) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.6s ease-in-out infinite;
   border-radius: 6px;
@@ -92,16 +98,14 @@ button:focus-visible { border-radius: 6px; }
   box-shadow: 0 8px 30px -8px rgba(0,0,0,0.4);
 }
 
-/* ── Preserve Vite's light media override minimum ───────────────────── */
+/* Hide scrollbar utility */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ── Light mode overrides ───────────────────────────────────────────── */
 @media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
+  :root:not(.dark) {
+    color: #111827;
     background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
   }
 }
